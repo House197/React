@@ -1062,3 +1062,282 @@ export const TodoApp = () => {
     )
 }
 ```
+
+# Sección 11. Use Context
+## Temas
+1. Context
+2. Provider
+3. useContext
+4. React Router
+5. Links y NavLinks
+6. CreateContext
+7. SPA ( Single Page Application )
+
+## 1. Router
+https://reactrouter.com/en/main/start/tutorial
+
+1. Instalar al menos react-router-dom
+``` bash
+npm install react-router-dom #localforage match-sorter sort-by
+```
+
+2. Envolver main con BrowserRouter.
+    - BrowserRouter se conoce como un componente de nivel superior. Eso significa que recibe componentes dentro de él.
+
+``` jsx
+import { BrowserRouter } from 'react-router-dom';
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <BrowserRouter>
+    {/* <React.StrictMode> */}
+      <MainApp />
+    {/* </React.StrictMode> */}
+  </BrowserRouter>
+)
+```
+
+3. Configurar Router
+    - Se definen en un componente en las capas superiores. En este caso se desea que MainApp siempre esté en la pantalla, por lo que las rutas se definen ahí.
+    - En la ruta se puede definir un /* para atrapar todas las rutas que no estén definidas.
+
+__09-useContext/MainApp.jsx__
+
+``` jsx
+import { Navigate, Route, Routes, Link } from 'react-router-dom';
+
+import { UserProvider } from './context/UserProvider';
+import { HomePage } from './HomePage';
+import { AboutPage } from './AboutPage';
+import { LoginPage } from './LoginPage';
+import { Navbar } from './Navbar';
+
+
+export const MainApp = () => {
+  return (
+    <UserProvider>
+        {/* <h1>MainApp</h1> */}
+        {/* <Link to="/">Home</Link>
+        <Link to="/about">About</Link>
+        <Link to="/login">Login</Link> */}
+        <Navbar />
+        <hr />
+
+
+        <Routes>
+          <Route path="/" element={ <HomePage /> } />
+          <Route path="about" element={ <AboutPage /> } />
+          <Route path="login" element={ <LoginPage /> } />
+
+          {/* <Route path="/*" element={ <LoginPage /> } /> */}
+          <Route path="/*" element={ <Navigate to="/about" /> } />
+
+        </Routes>
+    </UserProvider>
+  )
+}
+
+```
+
+### 1. Link
+- Permite usar elementos para navear a otros lados.
+    - No se podría usar <a>, ya que provoca un full refresh de la app.
+
+### 2. NavLink
+- Funciona igual que Link, solo que se le pueden asignar clases de CSS especiales según de la ubicación de la navegación.
+    - Tiene la prop de isActive, la cual será falso o verdadero si coincide con la ruta actual.
+    - Se obtiene de una función de flecha dentro de className.
+__09-useContext/Navbar.jsx__
+
+``` jsx
+import { Link, NavLink } from 'react-router-dom';
+
+
+export const Navbar = () => {
+  return (
+    <nav className="navbar navbar-expand-lg navbar-dark bg-dark rounded-3">
+        <div className="container-fluid">
+
+            <Link className="navbar-brand" to="/">useContext</Link>
+
+            <div className="collapse navbar-collapse" id="navbarNav">
+                <ul className="navbar-nav">
+                    
+                    <NavLink 
+                        className={ ({ isActive }) => `nav-link ${ isActive ? 'active' : '' }`}
+                        to="/">
+                        Home
+                    </NavLink>
+
+
+                    <NavLink 
+                        className={ ({ isActive }) => `nav-link ${ isActive ? 'active' : '' }`}
+                        to="/about">
+                        About
+                    </NavLink>
+
+                    <NavLink 
+                        className={ ({ isActive }) => `nav-link ${ isActive ? 'active' : '' }`}
+                        to="/Login">
+                        Login
+                    </NavLink>
+                </ul>
+            </div>
+        </div>
+    </nav>
+  )
+}
+
+```
+
+## 2. useContext y ContextProvider
+- Un contexto puede verse como la estructura de componentes de la aplicación.
+- En las devtools de react al ver el árbol de componentes se aprecia que algunos componentes tienen la palabra **.Provider**, tal como Navigation y Location.
+    - Esto indica que estos componentes están proveyendo información.
+
+1. Crear carpeta context en el root de la aplicación correspondiente.
+2. Crear UserContext.jsx
+    - Un context va a ser un componente de alto nivel.
+
+__UserContext.jsx__
+``` jsx
+import { createContext } from 'react';
+
+export const UserContext = createContext();
+```
+
+3. Crear proveedor.
+    - El proveedor va a ser el componente de nivel superior para envolver a los componentes que se desean tengan acceso al contexto.
+    - En este caso se está pasando la función set del estado deseado, lo cual no es recomendable debido a que le entrega poder de más a los componentes.
+
+__UserProvider.jsx__
+``` jsx
+import { useState } from "react"
+import { UserContext } from "./UserContext"
+
+// const user = {
+//     id: 123,
+//     name: 'Fernando Herrera',
+//     email: 'fernando@google.com'
+// }
+
+
+
+export const UserProvider = ({ children }) => {
+
+    const [user, setUser] = useState();
+
+    return (
+        // <UserContext.Provider value={{ hola: 'Mundo', user: user }}>
+        <UserContext.Provider value={{ user, setUser }}>
+            { children }
+        </UserContext.Provider>
+    )
+}
+```
+
+4. Colocar el provider en el punto a partir del cual sus hijos puedan empezar a ocuparlo.
+    - En este caso se coloca en MainApp.jsx.
+
+``` jsx
+import { Navigate, Route, Routes, Link } from 'react-router-dom';
+
+import { UserProvider } from './context/UserProvider';
+import { HomePage } from './HomePage';
+import { AboutPage } from './AboutPage';
+import { LoginPage } from './LoginPage';
+import { Navbar } from './Navbar';
+
+
+export const MainApp = () => {
+  return (
+    <UserProvider>
+        {/* <h1>MainApp</h1> */}
+        {/* <Link to="/">Home</Link>
+        <Link to="/about">About</Link>
+        <Link to="/login">Login</Link> */}
+        <Navbar />
+        <hr />
+
+
+        <Routes>
+          <Route path="/" element={ <HomePage /> } />
+          <Route path="about" element={ <AboutPage /> } />
+          <Route path="login" element={ <LoginPage /> } />
+
+          {/* <Route path="/*" element={ <LoginPage /> } /> */}
+          <Route path="/*" element={ <Navigate to="/about" /> } />
+
+        </Routes>
+    </UserProvider>
+  )
+}
+```
+
+### useContext
+- Permite consumir la iformación del provider.
+1. Se usa el hook useContext.
+2. Se le pasa como argumento el contexto definido.
+3. Se destructura la información.
+
+__LoginPage.jsx__
+
+``` jsx
+import { useContext } from 'react';
+import { UserContext } from './context/UserContext';
+
+
+export const LoginPage = () => {
+
+    const { user, setUser } = useContext( UserContext );
+    
+    return (
+      <>
+          <h1>LoginPage</h1>
+          <hr />
+
+          <pre aria-label="pre">
+            { JSON.stringify( user, null, 3 ) }
+          </pre>
+
+
+          <button 
+            className="btn btn-primary"
+            onClick={ () => setUser({ id: 123, name: 'Juan', email: 'juan@google.com' })  }
+          >
+            Establecer usuario
+          </button>
+
+      </>
+    )
+  }
+  
+```
+
+__HomePage.jsx__
+``` jsx
+import { useContext } from "react"
+import { UserContext } from "./context/UserContext";
+
+
+export const HomePage = () => {
+
+  const { user } = useContext( UserContext );
+
+
+    return (
+      <>
+          <h1>HomePage <small>{ user?.name }</small> </h1>
+          <hr />
+
+          <pre aria-label="pre">
+            { JSON.stringify( user, null, 3 ) }
+          </pre>
+      </>
+    )
+  }
+  
+```
+
+# Sección 12. Pruebas unitarias y de integración - Hooks
+- No se evalúa el funcionamiento interno del hook, sino que se evalúan sus efectos.
+    - Por ejemplo: si un efecto de useEffect modifica una variable cuando algo sucede, entonces se dispara todo ese efecto, se modifica la variable, y posteriormente se evalúa el resultado del efecto.
