@@ -33,10 +33,39 @@ return(
     - onNewCategory
     - onNewCharacter
 
+9. Se recomienda usar renerizado condicional para garantizar en un componente se desmonte y no solo se esconda.
+
+``` js
+            {
+                (username === 'strider2' ) && <Message />
+            }
+```
+
+10. Usar ternarios en colocar clases de forma condicional.
+    - Si se usa && entonces se agrega false en la clase de un elemento.
+
 ## useEffect
 1. No puede ser asíncrona la callback se se define.
     - Esto es porque useEffect debe retornar una función, pero al usar async ya está retornando una promesa.
     - Se recomienda crear una función asíncrona externa y mandarla a llamar en el useEffect.
+
+2. Al limpiar listeners se debe pasar la referencia de la función directamente y no una función anónima en donde llame a la función, ya que la función anónima es otro espacio en memoria del que se desea.
+
+``` js
+    useEffect(() => {
+        
+        const onMouseMove = ({ x, y }) => {
+            // const coords = { x, y };
+            setCoords({ x, y })
+        }
+
+        window.addEventListener( 'mousemove', onMouseMove );
+        
+      return () => {
+        window.removeEventListener( 'mousemove', onMouseMove );
+      }
+    }, []);
+```
 
 ## Importaciones
 1. Top level deben estar las de react.
