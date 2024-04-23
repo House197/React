@@ -1339,5 +1339,370 @@ export const HomePage = () => {
 ```
 
 # Sección 12. Pruebas unitarias y de integración - Hooks
-- No se evalúa el funcionamiento interno del hook, sino que se evalúan sus efectos.
+- No se evalúa el funcionamiento interno del hook, sino que se evalúan sus efectos. Si son custom hooks entonces sí deben evaluarse.
     - Por ejemplo: si un efecto de useEffect modifica una variable cuando algo sucede, entonces se dispara todo ese efecto, se modifica la variable, y posteriormente se evalúa el resultado del efecto.
+
+## Temas
+1. Pruebas sobre Hooks y CustomHooks
+
+## 1. Pruebas sobre useCounter CustomHook.
+- Se recuerda que para probar custom hooks se usa renderHook de @testing-library/react.
+- Las pruebas no se ecentran en línea por línea del código, sino en los resultados de funciones (valores esperados).
+
+- Custom Hook
+
+``` js
+import { useState } from "react"
+
+
+export const useCounter = ( initialValue = 10 ) => {
+
+    const [ counter, setCounter ] = useState( initialValue )
+
+    const increment = ( value = 1 ) => {
+        setCounter( (current) => current + value );
+    }
+
+    const decrement = ( value = 1 ) => {
+        // if ( counter === 0 ) return;
+
+        setCounter( (current) => current - value );
+    }
+
+    const reset = () => {
+        setCounter( initialValue );
+    }
+
+    return {
+        counter,
+        increment,
+        decrement,
+        reset,
+    }
+
+}
+
+
+```
+
+- Prueba
+    - Se hacen pruebas de:
+        - Revisar que muestre valor por defecto.
+        - Que muestre valor que se le pasa.
+        - Que incremente.
+            - En este caso se usa act de @testing-library/react para disparar el efecto de las funciones dadas en el callback que se pasa.
+            - En testeo el código que casua que el estado de React se actualice debe envolverse en act().
+            - Por otro lado, se aprecia que se evalúa result.current.counter y no counter directamente cuando se destructuró antes del act, ya que este no contiene el valor actualizado después de que act hiciera los cambios en el estado.
+            - Se aprecia que en act se manda increment dos veces, sin embargo, si en el componente el state estuviera como setCounter(counter + value) entonces el resultado de increment() en conjunto con incremente(2) sería 102 si el valor que se le pasa es 100.
+                - Esto sucede porque el último increment aún maneja el valor incial, y no contempla el cambio hecho por el increment anterior.
+                - Entonces, se recomienda tener el state como setState( value => value + 1);
+                - En otras palbras scedía porque en el set function se usaba directamente el valor del estado, pero mejor se coloca función de flecha para siempre tener el current.
+``` ts
+import { act, renderHook } from '@testing-library/react';
+import { useCounter } from '../../src/hooks/useCounter';
+
+
+describe('Pruebas en el useCounter', () => {
+    
+    test('debe de retornar los valores por defecto', () => {
+        
+        const { result } = renderHook( () => useCounter() );
+        const { counter, decrement, increment, reset } = result.current;
+
+        expect( counter ).toBe(10);
+        expect( decrement ).toEqual( expect.any( Function ) );
+        expect( increment ).toEqual( expect.any( Function ) );
+        expect( reset ).toEqual( expect.any( Function ) );
+
+    });
+
+    test('debe de generar el counter con el valor de 100', () => {
+        
+        const { result } = renderHook( () => useCounter(100) );
+        const { counter } = result.current;
+        expect( counter ).toBe(100);
+    });
+
+    test('debe de incrementar el contador', () => {
+        
+        const { result } = renderHook( () => useCounter(100) );
+        const { counter, increment } = result.current;
+
+        act( () => {
+            increment();
+            increment(2);
+        });
+
+        expect( result.current.counter ).toBe(103);
+
+    });
+
+    test('debe de decrementar el contador', () => {
+        
+        const { result } = renderHook( () => useCounter(100) );
+        const { counter, decrement } = result.current;
+
+        act( () => {
+            decrement();
+            decrement(2);
+        });
+
+        expect( result.current.counter ).toBe(97);
+
+    });
+
+    test('debe de realizar el reset', () => {
+        
+        const { result } = renderHook( () => useCounter(100) );
+        const { counter, decrement, reset } = result.current;
+
+        act( () => {
+            decrement();
+            reset();
+        });
+
+        expect( result.current.counter ).toBe(100);
+
+    });
+
+
+});
+
+```
+
+## 2. Pruebas sobre useForm - Custom Hook
+
+- Componente
+
+``` ts
+import { useState } from 'react';
+
+export const useForm = ( initialForm = {} ) => {
+  
+    const [ formState, setFormState ] = useState( initialForm );
+
+    const onInputChange = ({ target }) => {
+        const { name, value } = target;
+        setFormState({
+            ...formState,
+            [ name ]: value
+        });
+    }
+
+    const onResetForm = () => {
+        setFormState( initialForm );
+    }
+
+    return {
+        ...formState,
+        formState,
+        onInputChange,
+        onResetForm,
+    }
+}
+
+```
+
+- Test: 
+
+
+``` ts
+import { act, renderHook } from '@testing-library/react';
+import { useForm } from '../../src/hooks/useForm';
+
+
+describe('Pruebas en useForm', () => {
+
+    const initialForm = {
+        name: 'Fernando',
+        email: 'fernando@google.com'
+    }
+
+
+    test('debe de regresar los valores por defecto', () => {
+        
+        const { result } = renderHook( () => useForm(initialForm)  );
+        expect(result.current).toEqual({
+            name: initialForm.name,
+            email: initialForm.email,
+            formState: initialForm,
+            onInputChange: expect.any( Function ),
+            onResetForm: expect.any( Function ),
+        });
+
+    });
+
+
+    test('debe de cambiar el nombre del formulario', () => {
+
+        const newValue = 'Juan';
+        const { result } = renderHook( () => useForm(initialForm)  );
+        const { onInputChange } = result.current;
+        
+        act(()=>{
+            onInputChange({ target: { name: 'name', value: newValue } })
+        });
+                
+        expect( result.current.name ).toBe( newValue );
+        expect( result.current.formState.name ).toBe( newValue );
+
+        
+    });
+
+    test('debe de realizar el reset del formulario', () => {
+
+        const newValue = 'Juan';
+        const { result } = renderHook( () => useForm(initialForm)  );
+        const { onInputChange, onResetForm } = result.current;
+        
+        act(()=>{
+            onInputChange({ target: { name: 'name', value: newValue } });
+            onResetForm();
+        });
+                
+        expect( result.current.name ).toBe( initialForm.name );
+        expect( result.current.formState.name ).toBe( initialForm.name );
+
+        
+    });
+
+
+    
+});
+```
+
+## 3. Pruebas con múltiples hooks simultáneos
+
+- Componente
+
+``` ts
+
+
+import { useCounter, useFetch } from '../hooks';
+import { LoadingQuote, Quote } from './';
+
+
+export const MultipleCustomHooks = () => {
+
+    const { counter, increment } = useCounter(1);
+    const { data, isLoading, hasError } = useFetch(`https://www.breakingbadapi.com/api/quotes/${ counter }`);
+    const { author, quote } = !!data && data[0];
+    
+    return (
+        <>
+            <h1>BreakingBad Quotes</h1>
+            <hr />
+
+            {
+                isLoading
+                 ? <LoadingQuote />
+                 : <Quote author={ author } quote={ quote } />
+            }
+                      
+            <button 
+                className="btn btn-primary"
+                disabled={ isLoading }
+                onClick={ () => increment() }>
+                Next quote
+            </button>
+
+        </>
+    )
+}
+
+```
+
+- Test
+    - Se crea mock para useCounter.
+    - Se crea mock para useFetch.
+        - A comparaicón de la prueba de useFetch de la sección anterior esta vez se hace un mock completo para simular sus valores de retorno.
+        - Al hacer el mock completo se debe definir su mockReturnValue para definir los valores que retorna, de lo contrario la prueba da errores.
+            - mockReturnValue se hace en los test suits correspondientes, ya que va variando según la prueba. Por esta razón no se coloca en un lugar general.
+        - El mock para use counter se hace completo.
+            - Se coloca mockReturnValue en un lugar general ya que este es el mismo para todas las test suits.
+            - Se crea mockIncrement para simular que sea la función setter.
+                - En otras palabras, se vuelve a simular los valores que reotrna el custom hook.
+
+``` js
+import { fireEvent, render, screen } from '@testing-library/react';
+import { MultipleCustomHooks } from '../../src/03-examples';
+import { useCounter } from '../../src/hooks/useCounter';
+import { useFetch } from '../../src/hooks/useFetch';
+
+jest.mock('../../src/hooks/useFetch');
+jest.mock('../../src/hooks/useCounter');
+
+describe('Pruebas en <MultipleCustomHooks />', () => {
+
+    const mockIncrement = jest.fn();
+
+    useCounter.mockReturnValue({
+        counter: 1,
+        increment: mockIncrement
+    });
+
+    beforeEach( () => {
+        jest.clearAllMocks();
+    });
+
+// Es otra prueba válida además de usar Snapshot.
+    test('debe de mostrar el componente por defecto', () => {
+
+        // Se puede colcoar en un lugar general, pero como los valores son diferentes para cada prueba se define específicamente en cada test suit.
+        useFetch.mockReturnValue({
+            data: null,
+            isLoading: true,
+            hasError: null
+        });
+
+    
+        render( <MultipleCustomHooks /> );
+
+        expect( screen.getByText('Loading...') );
+        expect( screen.getByText('BreakingBad Quotes') );
+
+        const nextButton = screen.getByRole('button',{ name: 'Next quote' });
+        // Si se colocaun name que es invalido Jest sugiere algunas opciones disponibles de name según el componente.
+        expect(nextButton.disabled).toBeTruthy();
+        // screen.debug();
+
+    });
+
+    test('debe de mostrar un Quote', () => {
+
+        useFetch.mockReturnValue({
+            data: [{ author: 'Fernando', quote: 'Hola Mundo' }],
+            isLoading: false,
+            hasError: null
+        });
+        
+        render( <MultipleCustomHooks /> );
+        expect( screen.getByText('Hola Mundo') ).toBeTruthy();
+        expect( screen.getByText('Fernando') ).toBeTruthy();
+        
+        const nextButton = screen.getByRole('button',{ name: 'Next quote' });
+        expect(nextButton.disabled).toBeFalsy();
+    });
+
+
+    test('debe de llamar la función de incrementar', () => {
+
+    
+        useFetch.mockReturnValue({
+            data: [{ author: 'Fernando', quote: 'Hola Mundo' }],
+            isLoading: false,
+            hasError: null
+        });
+
+        
+        render( <MultipleCustomHooks /> );
+        const nextButton = screen.getByRole('button',{ name: 'Next quote' });
+        fireEvent.click( nextButton );
+
+        expect( mockIncrement ).toHaveBeenCalled();
+
+    });
+
+    
+});
+```

@@ -74,3 +74,7 @@ return(
 
 # Snippets
 - rfca
+
+# Notas
+- React se fusionó con la librería de @testing-library/react, por lo que la anterior cambio (insane ?)
+    - 

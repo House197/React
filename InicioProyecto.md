@@ -66,7 +66,7 @@ module.exports = {
 
 __jest.setup.js__
 ``` js
-// En caso de necesitar la implementación del FetchAPI
+// En caso de necesitar la implementación del FetchAPI, ya que no está en versiones antes a la 18 de node
 import 'whatwg-fetch'; // <-- yarn add whatwg-fetch
 ```
 
