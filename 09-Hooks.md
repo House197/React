@@ -1706,3 +1706,631 @@ describe('Pruebas en <MultipleCustomHooks />', () => {
     
 });
 ```
+
+## 4. Pruebas sobre reducer
+
+- __todoReducer.js__
+
+``` ts
+// { type: [todo remove], payload: id }
+
+export const todoReducer = ( initialState = [], action ) => {
+
+
+    switch ( action.type ) {
+        case '[TODO] Add Todo':
+            return [ ...initialState, action.payload ];
+
+        case '[TODO] Remove Todo':
+            return initialState.filter( todo => todo.id !== action.payload );
+
+        case '[TODO] Toggle Todo':
+            return initialState.map( todo => {
+
+                if ( todo.id === action.payload ) {// id
+                    return {
+                        ...todo,
+                        done: !todo.done
+                    }
+                } 
+
+                return todo;
+            });
+    
+        default:
+            return initialState;
+    }
+
+
+}
+```
+
+
+- Pruebas
+    1. Se prueban todas las acciones definidas en el reducer.
+        - En todas las pruebas se ha evaluado el mismo objeto que se coloca como argumento o inicialización, ya que los objetos se pasan por referencia.
+
+``` ts
+import { todoReducer } from '../../src/08-useReducer/todoReducer';
+
+
+
+describe('Pruebas en todoReducer', () => {
+    
+    const initialState = [{
+        id: 1,
+        description: 'Demo Todo',
+        done: false,
+    }];
+
+
+    test('debe de regresar el estado inicial', () => {
+        
+        const newState = todoReducer( initialState, {});
+        expect( newState ).toBe( initialState ); // El objeto se pasó por referencia, por lo que se puede usar toBe.
+
+    });
+
+    test('debe de agregar un todo', () => {
+
+        const action = {
+            type: '[TODO] Add Todo',
+            payload: {
+                id: 2,
+                description: 'Nuevo todo #2',
+                done: false
+            }
+        };
+
+        const newState = todoReducer( initialState, action );
+        expect( newState.length ).toBe( 2 );
+        expect( newState ).toContain( action.payload ); // toContain ayuda a evaluar que un arrelo tenga un objeto determinado. Es parecido a toEqual ya que evalúa que el contenido del objeto sea el esperado y no se enfoca en el espacio en memoria.
+        
+    });
+
+    test('debe de eliminar un TODO', () => {
+        
+        const action = {
+            type: '[TODO] Remove Todo',
+            payload: 1
+        };
+
+        const newState = todoReducer( initialState, action );
+        expect( newState.length ).toBe( 0 );
+
+    });
+
+    test('debe de realizar el Toggle del todo ', () => {
+        
+        const action = {
+            type: '[TODO] Toggle Todo',
+            payload: 1
+        };
+
+        const newState = todoReducer( initialState, action );
+        expect( newState[0].done ).toBe( true );
+        
+        const newState2 = todoReducer( newState, action );
+        expect( newState2[0].done ).toBe( false );
+
+    });
+
+
+});
+```
+
+## 5. Pruebas en el componente TodoItem
+
+- Componente
+
+``` ts
+
+export const TodoItem = ({ todo, onDeleteTodo, onToggleTodo }) => {
+  return (
+    <li className="list-group-item d-flex justify-content-between">
+        <span 
+          className={`align-self-center ${ (todo.done) ? 'text-decoration-line-through' : '' }`}
+          onClick={ () => onToggleTodo( todo.id ) }
+          aria-label="span"
+        >
+          { todo.description }
+        </span>
+        <button 
+          className="btn btn-danger"
+          onClick={ () => onDeleteTodo( todo.id ) }
+        >Borrar</button>
+    </li>
+  )
+}
+
+```
+
+- Tests
+    - En este caso el componente recibe dos funciones como argumento, por lo que fácilmente se les puede crear mocks y evaluar que sean llamadas, asó como se les pase el valor deseado. Esto se debe a que son pruebas atómicas, y las funciones que se le pasan en una prueba atómica no se sabe cómo funcionan y se evaluarán en sus respectivos archivos.
+    - eN TESTING SE TIENE EL FIXTURE para poder ir recreando data ficticia para no tener que ir recreandola en cada prueba.
+        - Por ejemplo, en las pruebas anteriores también se definió el mismo todo, por lo que en cada archivo se está repitiendo esa variable de prueba.
+
+``` js
+import { fireEvent, render, screen } from '@testing-library/react';
+import { TodoItem } from '../../src/08-useReducer/TodoItem';
+
+
+describe('Pruebas en <TodoItem />', () => {
+    
+    const todo = {
+        id: 1,
+        description: 'Piedra del Alma',
+        done: false
+    };
+
+    const onDeleteTodoMock = jest.fn();
+    const onToggleTodoMock = jest.fn();
+
+    beforeEach( () => jest.clearAllMocks() );
+
+
+    test('debe de mostrar el Todo Pendiente de completar', () => {
+        
+        render( 
+            <TodoItem 
+                todo={ todo } 
+                onToggleTodo={ onToggleTodoMock } 
+                onDeleteTodo={ onDeleteTodoMock } 
+            /> 
+        );
+
+        const liElement = screen.getByRole('listitem');
+        expect( liElement.className ).toBe('list-group-item d-flex justify-content-between')
+
+        const spanElement = screen.getByLabelText('span'); // Se le colocó un aria-label al span deseado.
+        expect( spanElement.className ).toContain('align-self-center'); // Al evaluar nombre de clases se recomienda usar toContian, ya que puede que con toBe evalúe también espacios que no interesan.
+        expect( spanElement.className ).not.toContain('text-decoration-line-through');
+
+    });
+
+
+    test('debe de mostrar el Todo completado', () => {
+        
+        todo.done = true;
+
+        render( 
+            <TodoItem 
+                todo={ todo } 
+                onToggleTodo={ onToggleTodoMock } 
+                onDeleteTodo={ onDeleteTodoMock } 
+            /> 
+        );
+
+        const spanElement = screen.getByLabelText('span');
+        expect( spanElement.className ).toContain('text-decoration-line-through');
+
+    });
+
+
+    test('span debe de llamar el ToggleTodo cuando se hace click', () => {
+        
+        render( 
+            <TodoItem 
+                todo={ todo } 
+                onToggleTodo={ onToggleTodoMock } 
+                onDeleteTodo={ onDeleteTodoMock } 
+            /> 
+        );
+
+        const spanElement = screen.getByLabelText('span');
+        fireEvent.click( spanElement );
+
+        expect( onToggleTodoMock ).toHaveBeenCalledWith( todo.id );
+
+    });
+
+    test('button debe de llamar el deleteTodo', () => {
+        
+        render( 
+            <TodoItem 
+                todo={ todo } 
+                onToggleTodo={ onToggleTodoMock } 
+                onDeleteTodo={ onDeleteTodoMock } 
+            /> 
+        );
+
+        const deleteButton = screen.getByRole('button');
+        fireEvent.click( deleteButton );
+
+        expect( onDeleteTodoMock ).toHaveBeenCalledWith( todo.id );
+
+    });
+
+
+
+});
+
+
+```
+
+## 8. Pruebas en TodoApp
+
+- Componente
+
+``` js
+import { fireEvent, render, screen } from '@testing-library/react';
+import { TodoItem } from '../../src/08-useReducer/TodoItem';
+
+
+describe('Pruebas en <TodoItem />', () => {
+    
+    const todo = {
+        id: 1,
+        description: 'Piedra del Alma',
+        done: false
+    };
+
+    const onDeleteTodoMock = jest.fn();
+    const onToggleTodoMock = jest.fn();
+
+    beforeEach( () => jest.clearAllMocks() );
+
+
+    test('debe de mostrar el Todo Pendiente de completar', () => {
+        
+        render( 
+            <TodoItem 
+                todo={ todo } 
+                onToggleTodo={ onToggleTodoMock } 
+                onDeleteTodo={ onDeleteTodoMock } 
+            /> 
+        );
+
+        const liElement = screen.getByRole('listitem');
+        expect( liElement.className ).toBe('list-group-item d-flex justify-content-between')
+
+        const spanElement = screen.getByLabelText('span');
+        expect( spanElement.className ).toContain('align-self-center');
+        expect( spanElement.className ).not.toContain('text-decoration-line-through');
+
+    });
+
+
+    test('debe de mostrar el Todo completado', () => {
+        
+        todo.done = true;
+
+        render( 
+            <TodoItem 
+                todo={ todo } 
+                onToggleTodo={ onToggleTodoMock } 
+                onDeleteTodo={ onDeleteTodoMock } 
+            /> 
+        );
+
+        const spanElement = screen.getByLabelText('span');
+        expect( spanElement.className ).toContain('text-decoration-line-through');
+
+    });
+
+
+    test('span debe de llamar el ToggleTodo cuando se hace click', () => {
+        
+        render( 
+            <TodoItem 
+                todo={ todo } 
+                onToggleTodo={ onToggleTodoMock } 
+                onDeleteTodo={ onDeleteTodoMock } 
+            /> 
+        );
+
+        const spanElement = screen.getByLabelText('span');
+        fireEvent.click( spanElement );
+
+        expect( onToggleTodoMock ).toHaveBeenCalledWith( todo.id );
+
+    });
+
+    test('button debe de llamar el deleteTodo', () => {
+        
+        render( 
+            <TodoItem 
+                todo={ todo } 
+                onToggleTodo={ onToggleTodoMock } 
+                onDeleteTodo={ onDeleteTodoMock } 
+            /> 
+        );
+
+        const deleteButton = screen.getByRole('button');
+        fireEvent.click( deleteButton );
+
+        expect( onDeleteTodoMock ).toHaveBeenCalledWith( todo.id );
+
+    });
+
+
+
+});
+
+
+```
+
+- Pruebas
+    - Se hace un mock completo de useTodos y se evalúa que el componente sea el esperado.
+
+``` js
+import { render, screen } from '@testing-library/react';
+import { TodoApp } from '../../src/08-useReducer/TodoApp';
+import { useTodos } from '../../src/hooks/useTodos';
+
+
+jest.mock('../../src/hooks/useTodos')
+
+
+describe('Pruebas en <TodoApp />', () => {
+
+    useTodos.mockReturnValue({
+        todos: [
+            { id: 1, description: 'Todo #1', done: false },
+            { id: 2, description: 'Todo #2', done: true },
+        ], 
+        todosCount: 2, 
+        pendingTodosCount: 1, 
+        handleDeleteTodo: jest.fn(), 
+        handleToggleTodo: jest.fn(), 
+        handleNewTodo: jest.fn()
+    });
+
+
+    test('debe de mostrar el componente correctamente', () => {
+        
+        render( <TodoApp /> );
+        // screen.debug();
+        expect( screen.getByText('Todo #1') ).toBeTruthy();
+        expect( screen.getByText('Todo #2') ).toBeTruthy();
+        expect( screen.getByRole('textbox') ).toBeTruthy();
+
+    });
+
+    
+});
+```
+## 9.Pruebas con useContext
+
+- Sujeto HomePage
+
+``` js
+import { useContext } from "react"
+import { UserContext } from "./context/UserContext";
+
+
+export const HomePage = () => {
+
+  const { user } = useContext( UserContext );
+
+
+    return (
+      <>
+          <h1>HomePage <small>{ user?.name }</small> </h1>
+          <hr />
+
+          <pre aria-label="pre">
+            { JSON.stringify( user, null, 3 ) }
+          </pre>
+      </>
+    )
+  }
+  
+```
+
+- Pruebas:
+    - Fácilmente se usa el contexto creado y se le pasan los valores con los que se harán pruebas.
+    - Se evalúa que no tenga el usuario, lo cual en la consola se aprecia que le pone null entre <pre>, lo cual ayuda a evaluar. 
+
+
+``` js
+import { render, screen } from '@testing-library/react';
+import { UserContext } from '../../src/09-useContext/context/UserContext';
+import { HomePage } from '../../src/09-useContext/HomePage';
+
+
+describe('Pruebas en <HomePage />', () => {
+
+    const user = {
+        id: 1,
+        name: 'Fernando'
+    }
+
+    test('debe de mostrar el componente sin el usuario', () => {
+        
+        render( 
+            <UserContext.Provider value={{ user: null }}>
+                <HomePage /> 
+            </UserContext.Provider>
+        );
+
+        const preTag = screen.getByLabelText('pre'); // aria-label
+        expect( preTag.innerHTML ).toBe( 'null' );
+        // screen.debug()
+    });
+
+
+    test('debe de mostrar el componente CON el usuario', () => {
+        
+        render( 
+            <UserContext.Provider value={{ user }}>
+                <HomePage /> 
+            </UserContext.Provider>
+        );
+
+        const preTag = screen.getByLabelText('pre'); // aria-label
+        expect( preTag.innerHTML ).toContain( user.name );
+        expect( preTag.innerHTML ).toContain( `${user.id}` );
+        // screen.debug()
+    });
+    
+});
+
+```
+
+## 10. Pruebas de funciones del context
+
+- LoginPage.jsx
+
+``` js
+import { useContext } from 'react';
+import { UserContext } from './context/UserContext';
+
+
+export const LoginPage = () => {
+
+    const { user, setUser } = useContext( UserContext );
+    
+    return (
+      <>
+          <h1>LoginPage</h1>
+          <hr />
+
+          <pre aria-label="pre">
+            { JSON.stringify( user, null, 3 ) }
+          </pre>
+
+
+          <button 
+            className="btn btn-primary"
+            onClick={ () => setUser({ id: 123, name: 'Juan', email: 'juan@google.com' })  }
+          >
+            Establecer usuario
+          </button>
+
+      </>
+    )
+  }
+  
+```
+
+- Test
+    - Se recuerda que no es trabajo del componente verificar que el usuario haya cambiado. Esto es trabajo del useContext.
+    - Este componente solo hace acciones dependiendo de si el usuario viene, de si se llaman las funciones con los argumentos requeridos cuando se ejecuta alguna acción.
+
+``` js
+import { fireEvent, render, screen } from "@testing-library/react";
+import { UserContext } from "../../src/09-useContext/context/UserContext";
+import { LoginPage } from "../../src/09-useContext/LoginPage";
+
+
+describe('Pruebas en <LoginPage />', () => {
+    
+    test('debe de mostrar el componente sin el usuario', () => {
+
+        render(
+            <UserContext.Provider value={{ user: null }}>
+                <LoginPage />
+            </UserContext.Provider>
+        );
+
+        const preTag = screen.getByLabelText('pre');
+        expect( preTag.innerHTML ).toBe('null');
+
+
+    });
+
+
+    test('debe de llamar el setUser cuando se hace click en el boton', () => {
+        
+        const setUserMock = jest.fn();
+
+        render(
+            <UserContext.Provider value={{ user: null, setUser: setUserMock }}>
+                <LoginPage />
+            </UserContext.Provider>
+        );
+
+        const button = screen.getByRole('button');
+        fireEvent.click( button );
+
+        expect( setUserMock ).toHaveBeenCalledWith({"email": "juan@google.com", "id": 123, "name": "Juan"})
+
+
+    });
+
+
+});
+```
+
+## 11. Pruebas generales en AppRouter
+
+- Test.
+    - Se evalúa que se renderice el componente correcto según el path.
+    - Se usa MemoryRouter de react-router-dom para poder simular la navegación.
+        - Se recuerda que en main se colocó el Browser Router, el cual provee de hooks especiales a la app. Entonces, con MemoryRouter se simula esto mismo.
+
+``` js
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { MainApp } from '../../src/09-useContext/MainApp';
+
+
+describe('Pruebas en <MainApp />', () => {
+    
+    test('debe de mostrar el HomePage', () => {
+        
+        render( 
+            <MemoryRouter>
+                <MainApp /> 
+            </MemoryRouter>
+        );
+
+        expect( screen.getByText('HomePage') ).toBeTruthy();
+        // screen.debug()
+
+    });
+
+    test('debe de mostrar el LoginPage', () => {
+        
+        render( 
+            <MemoryRouter initialEntries={['/login']}>
+                <MainApp /> 
+            </MemoryRouter>
+        );
+
+        expect( screen.getByText('LoginPage') ).toBeTruthy();
+        // screen.debug()
+
+    });
+
+});
+```
+
+- Sujeto.
+
+``` js
+import { Navigate, Route, Routes, Link } from 'react-router-dom';
+
+import { UserProvider } from './context/UserProvider';
+import { HomePage } from './HomePage';
+import { AboutPage } from './AboutPage';
+import { LoginPage } from './LoginPage';
+import { Navbar } from './Navbar';
+
+
+export const MainApp = () => {
+  return (
+    <UserProvider>
+        {/* <h1>MainApp</h1> */}
+        {/* <Link to="/">Home</Link>
+        <Link to="/about">About</Link>
+        <Link to="/login">Login</Link> */}
+        <Navbar />
+        <hr />
+
+
+        <Routes>
+          <Route path="/" element={ <HomePage /> } />
+          <Route path="about" element={ <AboutPage /> } />
+          <Route path="login" element={ <LoginPage /> } />
+
+          {/* <Route path="/*" element={ <LoginPage /> } /> */}
+          <Route path="/*" element={ <Navigate to="/about" /> } />
+
+        </Routes>
+    </UserProvider>
+  )
+}
+
+```
