@@ -388,4 +388,193 @@ npm i animate.css
 - Se usan nombres de clases especial en o componentes para agregar la animación.
     - animate__animated animate__fadeIn.
 
-## 7. QueryParameters
+## 7. QueryParameters - SearchComponent
+- Los query parameters siempre son opcionales.
+- En el componente se usa navigate para actualizar el URL con la query search que escribe el usuario.
+- Los query parameters se obtienen de la localización en el html.
+    - Se usa el hook useLocation.
+        - La variable de location a la cual se le asingna el useLocation contiene la propiedad de search, el cual contiene todo lo que viene después de ? en el url.
+        - Se toman los query parameters son la siguiente dependencia:
+
+``` bash
+npm i query-string
+```
+
+- Se usa queryString, el método parse el cual recibe la propiedad de search de location.
+- Se asegura que si se da el botón de atrás al haber hecho búsquedas entonces se inicializa el form con q, de esa forma el url al volver contiene el query search anterior, por lo que se lo pasa al form.
+
+``` js
+import { useLocation, useNavigate } from 'react-router-dom';
+import queryString from 'query-string'
+
+import { useForm } from '../../hooks/useForm';
+import { HeroCard } from '../components';
+import { getHeroesByName } from '../helpers';
+
+export const SearchPage = () => {
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const { q = '' } = queryString.parse( location.search );
+  const heroes = getHeroesByName(q);
+
+  const showSearch = (q.length === 0);
+  const showError  = (q.length > 0) && heroes.length === 0;
+
+
+  const { searchText, onInputChange } = useForm({
+    searchText: q // Permite  'guardar' la búsqueda si se hace back a la pantalla después de haber hecho varias búsquedas.
+  });
+
+
+
+  const onSearchSubmit = (event) =>{
+    event.preventDefault();
+    // if ( searchText.trim().length <= 1 ) return;
+    navigate(`?q=${ searchText }`);
+  }
+```
+
+# Sección 15. Protección de rutas
+## Temas
+1. Rutas públicas
+2. Rutas privadas
+3. Login y logout - Sin backend aún
+4. Recordar cuál fue la última ruta visitada para mejorar la experiencia de usuario.
+5. Context
+6. Reducer
+
+## 1. Context y Reducer de la aplicación
+- Se usará para la autenticación del usuario.
+- Esta lógica se colocará en la carpeta de auth.
+### 1. Reducer
+1. Se crea la carpeta types dentro de auth.
+    - El archivo types.js sirve para tener centralizado el nombre de las acciones para el reducer en un objeto, previniendo errores a la hora de escribir el nombre de las acciones.
+
+``` js
+export const types = {
+    login:  '[Auth] Login',
+    logout: '[Auth] Logout',
+}
+``` 
+
+2. Definir reducer. auth -> context -> authReducer.js
+
+``` js
+import { types } from '../types/types';
+
+export const authReducer = ( state = {}, action ) => {
+
+
+    switch ( action.type ) {
+
+        case types.login:
+            return {
+                ...state,
+                logged: true,
+                user: action.payload
+            };
+
+        case types.logout:
+            return {
+                logged: false,
+            };
+    
+        default:
+            return state;
+    }
+
+}
+```
+
+
+### 2. Context
+1. Se crea context -> AuthContext.jsx, la cual solo sirve para crear e importar el contexto
+
+``` jsx
+import { createContext } from 'react';
+
+
+export const AuthContext = createContext();
+```
+
+2. Crear context -> AuthProvider.jsx
+    - El provider creará el componente de orden superior que pasará los valores del context. Por otro lado, se implementa también el reducer en el provider.
+
+``` jsx
+import { useReducer } from 'react';
+import { AuthContext } from './AuthContext';
+import { authReducer } from './authReducer';
+
+import { types } from '../types/types';
+
+// const initialState = {
+//     logged: false,
+// }
+
+const init = () => {
+  const user = JSON.parse( localStorage.getItem('user') );
+
+  return {
+    logged: !!user,
+    user: user,
+  }
+}
+
+
+export const AuthProvider = ({ children }) => {
+    
+  const [ authState, dispatch ] = useReducer( authReducer, {}, init );
+
+  const login = ( name = '' ) => {
+
+    const user = { id: 'ABC', name }
+    const action = { type: types.login, payload: user }
+
+    localStorage.setItem('user', JSON.stringify( user ) );
+
+    dispatch(action);
+  }
+
+  const logout = () => {
+    localStorage.removeItem('user');
+    const action = { type: types.logout };
+    dispatch(action);
+  }
+
+
+  return (
+    <AuthContext.Provider value={{
+      ...authState,
+
+      // Methods
+      login,
+      logout,
+    }}>
+        { children }
+    </AuthContext.Provider>
+  );
+}
+
+```
+
+- Envolver a toda la aplicaicón con AuthProvider.
+    - Se envuelve a toda la aplicación (a las ventanas de Heroes) en HeroesApp.jsx
+
+``` jsx
+import { AuthProvider } from './auth';
+import { AppRouter } from './router/AppRouter';
+
+
+export const HeroesApp = () => {
+  return (
+    <AuthProvider>
+        
+        <AppRouter />
+        
+    </AuthProvider>
+  )
+}
+
+```

@@ -77,4 +77,4 @@ return(
 
 # Notas
 - React se fusionó con la librería de @testing-library/react, por lo que la anterior cambio (insane ?)
-    - 
+- Manejo de Vite con los assets. https://vitejs.dev/guide/assets.html
