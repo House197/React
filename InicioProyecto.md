@@ -4,7 +4,8 @@
 npm create vite
 ```
 ## 2. Limpiar directorio src (Opcional)
-1. Limpiar directorio y dejar solo main.tsx
+1. Limpiar directorio y dejar solo main.tsx.
+    - Crear estilos globales en style.css y vincularlo en main.tsx
 
 ## 3. Instalar módulos de node
 
@@ -75,6 +76,37 @@ import 'whatwg-fetch'; // <-- yarn add whatwg-fetch
     - jest.config.js
     - babel.config.js
 
+## Instalar React Router si es que se ocupa
+https://github.com/Klerith/react-heroes.git
+- Solo se necesita react-router-dom para la app.
+
+``` bash
+npm install react-router-dom #localforage match-sorter sort-by
+```
+
+2. Envolver main.jsx con BrowserReact.
+
+
+__main.tsx__
+``` ts
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+
+import { HeroesApp } from './HeroesApp';
+import './styles.css';
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <HeroesApp />
+    </BrowserRouter>
+  </React.StrictMode>
+);
+
+```
+
+- Mas información en proyecto 14.SinglePageApplication
 
 ## Clonar rama de github
 git clone --branch fin-seccion-8 https://github.com/Klerith/react-gif-expert.git
