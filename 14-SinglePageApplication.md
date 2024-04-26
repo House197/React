@@ -501,6 +501,7 @@ export const AuthContext = createContext();
 
 2. Crear context -> AuthProvider.jsx
     - El provider creará el componente de orden superior que pasará los valores del context. Por otro lado, se implementa también el reducer en el provider.
+    - La lógica de persistir el usuario se coloca en AuthProvider, no en el reducer ya que en el reducer no se pueden llamar funciones externas como localstorage o console logs.
 
 ``` jsx
 import { useReducer } from 'react';
@@ -577,4 +578,885 @@ export const HeroesApp = () => {
   )
 }
 
+```
+
+## 3. Rutas privadas
+- Si no se está autenticado entonces no se debe poder entrar a rutas como /marvel.
+- Se tiene el componente Outlet, el cual se entendió puede envolver varias rutas en un solo componente para simplemente llamarlo en donde se desee.
+
+1. src -> router -> PrivateRoute.jsx
+    - Si el usuario está logueado entonces permite visitar a los Children, de lo contrario va login.
+``` jsx
+import { useContext } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+
+import { AuthContext } from '../auth';
+
+
+export const PrivateRoute = ({ children }) => {
+
+    const { logged } = useContext( AuthContext );
+    const { pathname, search } = useLocation(); // Se usa para recordar última página visitada
+    
+    const lastPath = pathname + search;
+    localStorage.setItem('lastPath', lastPath );
+    
+
+    return (logged)
+        ? children
+        : <Navigate to="/login" />
+}
+
+```
+
+2. Envolver a rutas que se desean proteger.
+    - Las rutas se encuentra en AppRouter, las cuales son las que permiten visitar a HeroesRoutes.
+
+``` jsx
+import { Route, Routes } from 'react-router-dom';
+
+import { HeroesRoutes } from '../heroes';
+import { LoginPage } from '../auth';
+import { PrivateRoute } from './PrivateRoute';
+import { PublicRoute } from './PublicRoute';
+
+
+
+export const AppRouter = () => {
+  return (
+    <>
+
+        <Routes>
+            
+            <Route path="login/*" element={
+                <PublicRoute>
+                  {/* <LoginPage /> */}
+                  <Routes>
+                    <Route path="/*" element={<LoginPage />} />
+                  </Routes>
+                </PublicRoute>
+              }
+            />
+            
+            
+            <Route path="/*" element={
+              <PrivateRoute>
+                <HeroesRoutes />
+              </PrivateRoute>
+            } />
+
+            {/* <Route path="login" element={<LoginPage />} /> */}
+            {/* <Route path="/*" element={ <HeroesRoutes />} /> */}
+            
+            
+
+        </Routes>
+    
+    </>
+  )
+}
+```
+
+## 4. Rutas públicas
+- Si se está con un usuario autenticado no debería permitir ir al login.
+
+1. src -> router -> PublicRoute.jsx
+
+``` jsx
+import { useContext } from 'react';
+import { Navigate } from 'react-router-dom';
+
+import { AuthContext } from '../auth';
+
+
+export const PublicRoute = ({ children }) => {
+
+    const { logged } = useContext( AuthContext );
+    
+    return (!logged)
+        ? children
+        : <Navigate to="/marvel" />
+}
+
+```
+
+## 5. Recordar la última página visitada
+- Se usa useLocation en PrivateRoute.
+    - Se puede mejorar, ya que con los query parameters hace que se vuelva a renderizar a pesar de mandar siempre los mismos queryparameters.
+        - Se puede usar un useMemo o un useEffect.
+``` jsx
+import { useContext } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+
+import { AuthContext } from '../auth';
+
+
+export const PrivateRoute = ({ children }) => {
+
+    const { logged } = useContext(AuthContext);
+    const { pathname, search } = useLocation();
+
+    const lastPath = pathname + search;
+    localStorage.setItem('lastPath', lastPath);
+
+
+    return (logged)
+        ? children
+        : <Navigate to="/login" />
+}
+
+```
+
+- En LoginPage se reciba el path gurdado en localstorage.
+
+``` jsx
+import { useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
+
+export const LoginPage = () => {
+
+  const { login } = useContext( AuthContext );
+  const navigate = useNavigate();
+
+  const onLogin = () => {
+    
+    const lastPath = localStorage.getItem('lastPath') || '/';
+
+    login( 'Fernando Herrera' );
+    
+    navigate( lastPath, {
+      replace: true
+    });
+  }
+
+  return (
+    <div className="container mt-5">
+      <h1>Login</h1>
+      <hr />
+
+      <button 
+        className="btn btn-primary"
+        onClick={ onLogin }
+      >
+        Login
+      </button>
+
+    </div>
+  )
+}
+
+```
+
+# Sección 16. Pruebas de aplicación
+## Temas 
+1. Nuevos tipos de pruebas
+2. Pruebas en rutas privadas y públicas
+3. MemoryRouter
+4. Pruebas en nuestro DashboardRouter
+5. Pruebas en el AppRouter
+6. Simular URLs y segmentos
+7. Simular queryParams y queryStrings
+
+## 1. Pruebas en authReducer
+
+- Sujeto
+
+``` jsx
+import { types } from '../types/types';
+
+export const authReducer = (state = {}, action) => {
+
+
+    switch (action.type) {
+
+        case types.login:
+            return {
+                ...state,
+                logged: true,
+                user: action.payload
+            };
+
+        case types.logout:
+            return {
+                logged: false,
+            };
+
+        default:
+            return state;
+    }
+
+}
+
+
+```
+
+- Tests
+
+``` js
+import { authReducer, types } from "../../../src/auth";
+
+
+describe('Pruebas en authReducer', () => {
+    
+    test('debe de retornar el estado por defecto', () => {
+
+        const state = authReducer({ logged: false }, {});
+        expect( state ).toEqual({ logged: false });
+
+    });
+
+    test('debe de (login) llamar el login autenticar y establecer el user', () => {
+
+        const action = {
+            type: types.login,
+            payload: {
+                name: 'Juan',
+                id: '123'
+            }
+        }
+
+        const state = authReducer({ logged: false }, action );
+        expect( state ).toEqual({
+            logged: true,
+            user: action.payload
+        })
+
+    });
+
+    test('debe de (logout) borrar el name del usuario y logged en false ', () => {
+
+        const state = {
+            logged: true,
+            user: { id: '123', name: 'Juan' }
+        }
+
+        const action = {
+            type: types.logout
+        }
+
+        const newState = authReducer( state, action );
+        expect( newState ).toEqual({ logged: false })
+
+    });
+
+
+
+});
+```
+
+## 2 Pruebas sobre Types
+
+- Sujeto
+
+``` js
+export const types = {
+    login:  '[Auth] Login',
+    logout: '[Auth] Logout',
+}
+```
+
+- Tests
+    - Estas pruebas sirven para ponerle un candado a las types y que no cambien.
+    - Se definen Routes en los tests para poder evaluar a las rutas.
+    - Por ejemplo, se usa MemoryRouter para tener las funcionalidades de BrowserRouter en los tests.
+        - Se deben definir al menos dos rutas, ya que con una sola entra en un ciclo infinito debido a que se empieza a redireccionar a la única ruta que hay.
+
+``` js
+import { types } from "../../../src/auth/types/types";
+
+
+describe('Pruebas en "Types.js"', () => {
+    
+    test('debe de regresar estos types', () => {
+
+        expect(types).toEqual({
+            login:  '[Auth] Login',
+            logout: '[Auth] Logout',
+        })
+        
+    });
+
+});
+```
+
+## 3. Pruebas en el PublicRoute
+
+- Sujeto
+
+``` js
+import { useContext } from 'react';
+import { Navigate } from 'react-router-dom';
+
+import { AuthContext } from '../auth';
+
+
+export const PublicRoute = ({ children }) => {
+
+    const { logged } = useContext( AuthContext );
+    
+    return (!logged)
+        ? children
+        : <Navigate to="/marvel" />
+}
+
+```
+
+- Tests
+
+``` js
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+
+import { AuthContext } from '../../src/auth';
+import { PublicRoute } from '../../src/router/PublicRoute';
+
+
+describe('Pruebas en <PublicRoute />', () => {
+    
+    test('debe de mostrar el children si no está autenticado', () => {
+        
+        const contextValue = {
+            logged: false
+        }
+
+        render(
+            <AuthContext.Provider value={ contextValue }>
+                <PublicRoute>
+                    <h1>Ruta pública</h1>
+                </PublicRoute>
+            </AuthContext.Provider>
+        );
+
+        expect( screen.getByText('Ruta pública') ).toBeTruthy();
+
+    });
+
+
+    test('debe de navegar si está autenticado', () => { 
+
+        
+        const contextValue = {
+            logged: true,
+            user: {
+                name: 'Strider',
+                id: 'ABC123'
+            }
+        }
+
+        render(
+            <AuthContext.Provider value={ contextValue }>
+                <MemoryRouter initialEntries={['/login']}>
+
+                    <Routes>
+                        <Route path='login' element={
+                            <PublicRoute>
+                                <h1>Ruta pública</h1>
+                            </PublicRoute>
+                        } />
+                        <Route path='marvel' element={ <h1>Página Marvel</h1> } />
+                    </Routes>
+
+                    
+                </MemoryRouter>
+            </AuthContext.Provider>
+        );
+
+        expect( screen.getByText('Página Marvel') ).toBeTruthy();
+
+
+    })
+
+});
+```
+
+## 4. Oruebas en PrivateRoute
+- En estas pruebas se hacen mocks para evaluar el local storage, en donde se utiliza su prototype para poder tomar métodos como setItem.
+
+- Sujeto
+
+``` js
+import { useContext } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+
+import { AuthContext } from '../auth';
+
+
+export const PrivateRoute = ({ children }) => {
+
+    const { logged } = useContext(AuthContext);
+    const { pathname, search } = useLocation();
+
+    const lastPath = pathname + search;
+    localStorage.setItem('lastPath', lastPath);
+
+
+    return (logged)
+        ? children
+        : <Navigate to="/login" />
+}
+```
+
+- Tests
+
+``` js
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { AuthContext } from '../../src/auth';
+import { PrivateRoute } from '../../src/router/PrivateRoute';
+
+
+describe('Pruebas en el <PrivateRoute />', () => {
+
+    test('debe de mostrar el children si está autenticado', () => {
+
+        Storage.prototype.setItem = jest.fn();
+
+        
+        const contextValue = {
+            logged: true,
+            user: {
+                id: 'abc',
+                name: 'Juan Carlos'
+            }
+        }
+
+        render(
+            <AuthContext.Provider value={ contextValue }>
+                <MemoryRouter initialEntries={['/search?q=batman']}>
+                    <PrivateRoute>
+                        <h1>Ruta privada</h1>
+                    </PrivateRoute>
+                </MemoryRouter>
+            </AuthContext.Provider>
+        );
+
+        expect( screen.getByText('Ruta privada') ).toBeTruthy();
+        expect( localStorage.setItem ).toHaveBeenCalledWith('lastPath', '/search?q=batman');
+
+    });
+
+
+    
+});
+```
+
+## 5. Pruebas en el AppRouter
+
+- Sujeto
+
+``` js
+import { Route, Routes } from 'react-router-dom';
+
+import { HeroesRoutes } from '../heroes';
+import { LoginPage } from '../auth';
+import { PrivateRoute } from './PrivateRoute';
+import { PublicRoute } from './PublicRoute';
+
+
+
+export const AppRouter = () => {
+  return (
+    <>
+
+        <Routes>
+            
+            <Route path="login/*" element={
+                <PublicRoute>
+                  {/* <LoginPage /> */}
+                  <Routes>
+                    <Route path="/*" element={<LoginPage />} />
+                  </Routes>
+                </PublicRoute>
+              }
+            />
+            
+            
+            <Route path="/*" element={
+              <PrivateRoute>
+                <HeroesRoutes />
+              </PrivateRoute>
+            } />
+
+            {/* <Route path="login" element={<LoginPage />} /> */}
+            {/* <Route path="/*" element={ <HeroesRoutes />} /> */}
+            
+            
+
+        </Routes>
+    
+    </>
+  )
+}
+
+```
+
+- Tests
+
+``` js
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { AuthContext } from '../../src/auth';
+import { AppRouter } from '../../src/router/AppRouter';
+
+describe('Pruebas en <AppRouter />', () => {
+    
+    test('debe de mostrar el login si no está autenticado', () => {
+
+        const contextValue = {
+            logged: false,
+        }
+
+        render(
+            <MemoryRouter initialEntries={['/marvel']}>
+                <AuthContext.Provider value={ contextValue }>
+                    <AppRouter />
+                </AuthContext.Provider>
+            </MemoryRouter>
+        );
+
+        expect( screen.getAllByText('Login').length ).toBe(2)
+
+        
+    });
+
+    test('debe de mostrar el componente de Marvel si está autenticado', () => {
+    
+        const contextValue = {
+            logged: true,
+            user: {
+                id: 'ABC',
+                name: 'Juan Carlos'
+            }
+        }
+
+        render(
+            <MemoryRouter initialEntries={['/login']}>
+                <AuthContext.Provider value={ contextValue }>
+                    <AppRouter />
+                </AuthContext.Provider>
+            </MemoryRouter>
+        );
+
+        expect( screen.getAllByText('Marvel').length ).toBeGreaterThanOrEqual(1);
+
+        
+
+    });
+
+
+});
+```
+
+## 6. Pruebas en Navbar
+
+- Sujeto
+
+``` js
+import { Link, NavLink } from 'react-router-dom';
+
+
+export const Navbar = () => {
+  return (
+    <nav className="navbar navbar-expand-lg navbar-dark bg-dark rounded-3">
+        <div className="container-fluid">
+
+            <Link className="navbar-brand" to="/">useContext</Link>
+
+            <div className="collapse navbar-collapse" id="navbarNav">
+                <ul className="navbar-nav">
+                    
+                    <NavLink 
+                        className={ ({ isActive }) => `nav-link ${ isActive ? 'active' : '' }`}
+                        to="/">
+                        Home
+                    </NavLink>
+
+
+                    <NavLink 
+                        className={ ({ isActive }) => `nav-link ${ isActive ? 'active' : '' }`}
+                        to="/about">
+                        About
+                    </NavLink>
+
+                    <NavLink 
+                        className={ ({ isActive }) => `nav-link ${ isActive ? 'active' : '' }`}
+                        to="/Login">
+                        Login
+                    </NavLink>
+                </ul>
+            </div>
+        </div>
+    </nav>
+  )
+}
+
+```
+
+- Tests
+    - Se realiza un mock completo de useNavigate para validar que se llame con los argumentos desados cuando se presione el botón de logout.
+        - En las pruebas pasadas se pasaba todo el path de donde estaba el customhook para crear el mock, sin embargo ahora se tiene que pribar un hook de React. Se Hace un mock de toda la librería de react-router-dom.
+        - Se hace una destructuración de toda la librería en el callback para indicar que se tome todo por defecto a exepción del hook de useNavigate, el cual va a ser un mock.
+
+``` js
+import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
+
+import { AuthContext } from '../../../src/auth/context/AuthContext';
+import { Navbar } from '../../../src/ui/components/Navbar';
+
+const mockedUseNavigate = jest.fn();
+
+jest.mock('react-router-dom', () => ({
+    ...jest.requireActual('react-router-dom'),
+    useNavigate: () => mockedUseNavigate,
+}));
+
+
+describe('Pruebas en <Navbar />', () => {
+
+    const contextValue = {
+        logged: true,
+        user: {
+            name: 'Juan Carlos'
+        },
+        logout: jest.fn()
+    }
+
+    beforeEach(() => jest.clearAllMocks());
+
+
+    test('debe de mostrar el nombre del usuario', () => {
+
+        render(
+            <AuthContext.Provider value={contextValue}>
+                <MemoryRouter>
+                    <Navbar />
+                </MemoryRouter>
+            </AuthContext.Provider>
+        );
+
+        expect(screen.getByText('Juan Carlos')).toBeTruthy();
+
+
+    });
+
+    test('debe de llamar el logout y navigate cuando se hace click en el botón', () => {
+
+        render(
+            <AuthContext.Provider value={contextValue}>
+                <MemoryRouter>
+                    <Navbar />
+                </MemoryRouter>
+            </AuthContext.Provider>
+        );
+
+        const logoutBtn = screen.getByRole('button');
+        fireEvent.click(logoutBtn);
+
+        expect(contextValue.logout).toHaveBeenCalled()
+        expect(mockedUseNavigate).toHaveBeenCalledWith('/login', { "replace": true })
+
+
+    });
+
+
+});
+
+
+
+```
+
+## 7. Pruebas en el SearchScreen
+
+- Sujeto
+
+``` js
+import { useLocation, useNavigate } from 'react-router-dom';
+import queryString from 'query-string'
+
+import { useForm } from '../../hooks/useForm';
+import { HeroCard } from '../components';
+import { getHeroesByName } from '../helpers';
+
+export const SearchPage = () => {
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const { q = '' } = queryString.parse( location.search );
+  const heroes = getHeroesByName(q);
+
+  const showSearch = (q.length === 0);
+  const showError  = (q.length > 0) && heroes.length === 0;
+
+
+  const { searchText, onInputChange } = useForm({
+    searchText: q
+  });
+
+
+
+  const onSearchSubmit = (event) =>{
+    event.preventDefault();
+    // if ( searchText.trim().length <= 1 ) return;
+    navigate(`?q=${ searchText }`);
+  }
+
+
+  return (
+    <>
+      <h1>Search</h1> 
+      <hr />
+
+      <div className="row">
+
+          <div className="col-5">
+            <h4>Searching</h4>
+            <hr />
+            <form onSubmit={ onSearchSubmit } aria-label="form">
+              <input 
+                type="text"
+                placeholder="Search a hero"
+                className="form-control"
+                name="searchText"
+                autoComplete="off"
+                value={ searchText }
+                onChange={ onInputChange }
+              />
+
+              <button className="btn btn-outline-primary mt-1">
+                Search
+              </button>
+            </form>
+          </div>
+
+          <div className="col-7">
+            <h4>Results</h4>
+            <hr />
+
+            {/* {
+              ( q === '' )
+                ? <div className="alert alert-primary">Search a hero</div>
+                : ( heroes.length === 0 ) 
+                  && <div className="alert alert-danger">No hero with <b>{ q }</b></div>
+            } */}
+            
+            <div className="alert alert-primary animate__animated animate__fadeIn" 
+                style={{ display: showSearch ? '' : 'none' }}>
+              Search a hero
+            </div>
+
+            <div aria-label="alert-danger" className="alert alert-danger animate__animated animate__fadeIn" 
+                style={{ display: showError ? '' : 'none' }}>
+              No hero with <b>{ q }</b>
+            </div>
+
+
+            {
+              heroes.map( hero => (
+                <HeroCard key={ hero.id } {...hero } />
+              ))
+            }
+
+          </div>
+      </div>
+      
+
+    </>
+  )
+}
+
+```
+
+- Tests
+    - Se aprovecha initialEntries de MeoryRouter para pasar valores de query parameters para poder hacer pruebas.
+
+``` js
+import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { SearchPage } from '../../../src/heroes/pages/SearchPage';
+
+const mockedUseNavigate = jest.fn();
+
+jest.mock('react-router-dom', () => ({
+    ...jest.requireActual('react-router-dom'),
+    useNavigate: () => mockedUseNavigate,
+}));
+
+
+
+describe('Pruebas en <SearchPage />', () => {
+
+
+    beforeEach(() => jest.clearAllMocks() );
+
+    
+    test('debe de mostrarse correactamente con valores por defecto', () => {
+        
+        const { container } =render(
+            <MemoryRouter>
+                <SearchPage />
+            </MemoryRouter>
+        );
+        expect( container ).toMatchSnapshot();
+        
+    });
+
+    test('debe de mostrar a Batman y el input con el valor del queryString', () => {
+        
+        render(
+            <MemoryRouter initialEntries={['/search?q=batman']}>
+                <SearchPage />
+            </MemoryRouter>
+        );
+        
+        const input = screen.getByRole('textbox');
+        expect( input.value ).toBe('batman');
+        
+        const img = screen.getByRole('img');
+        expect( img.src ).toContain('/assets/heroes/dc-batman.jpg');
+
+        const alert = screen.getByLabelText('alert-danger');
+        expect( alert.style.display ).toBe('none');
+        
+    });
+
+    test('debe de mostrar un error si no se encuentra el hero (batman123)', () => {
+        
+        render(
+            <MemoryRouter initialEntries={['/search?q=batman123']}>
+                <SearchPage />
+            </MemoryRouter>
+        );
+
+        const alert = screen.getByLabelText('alert-danger');
+        expect( alert.style.display ).toBe('');
+        
+
+    });
+
+    test('debe de llamar el navigate a la pantalla nueva', () => {
+        
+        const inputValue = 'superman';
+
+        render(
+            <MemoryRouter initialEntries={['/search']}>
+                <SearchPage />
+            </MemoryRouter>
+        );
+
+        const input = screen.getByRole('textbox');
+        fireEvent.change( input, { target: { name: 'searchText', value: inputValue }})
+        
+        
+        const form = screen.getByRole('form');
+        fireEvent.submit( form );
+        
+        expect( mockedUseNavigate ).toHaveBeenCalledWith(`?q=${ inputValue }`)
+
+    });
+
+
+});
 ```

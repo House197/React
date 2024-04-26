@@ -22,44 +22,44 @@ describe('Pruebas en <Navbar />', () => {
         logout: jest.fn()
     }
 
-    beforeEach(() => jest.clearAllMocks() );
+    beforeEach(() => jest.clearAllMocks());
 
 
     test('debe de mostrar el nombre del usuario', () => {
-        
+
         render(
-            <AuthContext.Provider value={ contextValue}>
+            <AuthContext.Provider value={contextValue}>
                 <MemoryRouter>
                     <Navbar />
-                </MemoryRouter> 
+                </MemoryRouter>
             </AuthContext.Provider>
         );
-        
-        expect( screen.getByText('Juan Carlos') ).toBeTruthy();
-        
+
+        expect(screen.getByText('Juan Carlos')).toBeTruthy();
+
 
     });
 
     test('debe de llamar el logout y navigate cuando se hace click en el botón', () => {
 
         render(
-            <AuthContext.Provider value={ contextValue}>
+            <AuthContext.Provider value={contextValue}>
                 <MemoryRouter>
                     <Navbar />
-                </MemoryRouter> 
+                </MemoryRouter>
             </AuthContext.Provider>
         );
 
         const logoutBtn = screen.getByRole('button');
-        fireEvent.click( logoutBtn );
+        fireEvent.click(logoutBtn);
 
-        expect( contextValue.logout ).toHaveBeenCalled()
-        expect( mockedUseNavigate ).toHaveBeenCalledWith('/login', {"replace": true})
+        expect(contextValue.logout).toHaveBeenCalled()
+        expect(mockedUseNavigate).toHaveBeenCalledWith('/login', { "replace": true })
 
 
     });
 
-    
+
 });
 
 

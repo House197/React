@@ -67,6 +67,21 @@ return(
     }, []);
 ```
 
+## Testoing
+- Llamar beforeEach para limpiar mocks cada que se usan jest.fn
+
+``` js
+    const contextValue = {
+        logged: true,
+        user: {
+            name: 'Juan Carlos'
+        },
+        logout: jest.fn()
+    }
+
+    beforeEach(() => jest.clearAllMocks());
+```
+
 ## Importaciones
 1. Top level deben estar las de react.
 2. Después de top level las dependencias de terceros.

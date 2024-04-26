@@ -19,6 +19,7 @@ npm i prop-types
 ```
 
 # Configurar ambiente de pruebas
+https://gist.github.com/Klerith/ca7e57fae3c9ab92ad08baadc6c26177
 - Trazar ruta crítica antes de hace testing.
     - Empezar testing con componentes que menos dependencias tienen. (Pruebas atómicas.)
 - No evaluar el body de la respuesta de una API.
