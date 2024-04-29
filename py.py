@@ -1,3 +1,4 @@
+'''
 params = {
 	'PP_S1': 1,
 	'PP_S2': 2,
@@ -51,3 +52,84 @@ def savePlan(self, params):
             
     print query + ', ' +str(paramsQuery)
     system.db.runPrepUpdate(query,paramsQuery)
+
+'''
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+system = 1
+def getCurrentInventory(self, partnumber):
+    queryLocations = "SELECT * FROM locations"
+    
+    sql_pt_relation = '''
+        SELECT id_relation, PP_InventoryPartnumber.id_partnumber, PP_InventoryPartnumber.partnumber, T1.Description as Description_Partnumber, PP_InventoryPartnumber.partnumber_inv, T2.Description as Description_Partnumber_Inv
+        FROM PP_InventoryPartnumber
+        INNER JOIN PP_Partnumbers as T1 ON T1.Partnumber = PP_InventoryPartnumber.partnumber
+        INNER JOIN PP_Partnumbers as T2 ON T2.Partnumber = PP_InventoryPartnumber.partnumber_inv
+        WHERE PP_InventoryPartnumber.partnumber = ?
+    '''
+
+    sql_inv_actual = '''
+        SELECT DISTINCT locations.location, partnumber.partnumber, partnumber.description, PP_InventariosActuales.QtyOnHand, PP_InventariosActuales.Username, PP_InventariosActuales.Timestamp
+        FROM PP_InventariosActuales
+        INNER JOIN locations ON PP_InventariosActuales.Location = locations.location
+        INNER JOIN partnumber ON PP_InventariosActuales.ItemNumber = partnumber.partnumber
+        INNER JOIN c_line ON partnumber.id_line = c_line.id_line
+        WHERE partnumber.partnumber IN({partnumbers}) 
+    '''
+                        
+    #locationDataset = system.db.runPrepQuery(queryLocations, [partnumber])
+    locationDataset = system.db.runQuery(queryLocations)
+    
+    CountPartnumberLocations = len(locationDataset)
+    locations =  locationDataset.getColumnAsList(1)
+
+    datasetPartnumberInventoryRelation = system.db.runPrepQuery(sql_pt_relation, [partnumber])
+
+    #datalistPartnumberInventoryRelation = system.dataset.toPyDataSet(datasetPartnumberInventoryRelation)
+    #CountPartnumberInventoryRelation = len(datalistPartnumberInventoryRelation)
+
+    InvActu = 0
+    if len(datasetPartnumberInventoryRelation) != 0:
+
+        partnumbers =  datasetPartnumberInventoryRelation.getColumnAsList(4)
+        partnumbersString = ", ".join("'{}'".format(pt) for pt in map(str, partnumbers))
+
+        sql_inv_actual = sql_inv_actual.replace('{partnumbers}', partnumbersString)
+
+        datasetInventory = system.db.runPrepQuery(sql_inv_actual,[])
+  
+        countInventory = len(datasetInventory)
+        for row in range(0, countInventory):
+            InvActu += datasetInventory.getValueAt(row, 'QtyOnHand')
+    else:
+        sql_inv_actual = sql_inv_actual.replace('{partnumbers}', partnumber)
+        datasetInventory = system.db.runPrepQuery(sql_inv_actual,[])
+
+        countInventory = len(datasetInventory)
+        
+        if countInventory != 0 and CountPartnumberLocations != 0:
+            for row in range(0, countInventory):
+                location = datasetInventory.getValueAt(row, 'location')
+                if location in locations:
+                    InvActu += datasetInventory.getValueAt(row, 'QtyOnHand')
+        elif countInventory != 0 and CountPartnumberLocations == 0:
+            InvActu = datasetInventory.getValueAt(0, 'QtyOnHand')
+        else:
+            InvActu = 0
+    return InvActu
+    
