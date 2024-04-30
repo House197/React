@@ -669,6 +669,7 @@ describe('Pruebas en useUiStore', () => {
 ```
 
 ## 6. Pruebas useAuthStore
+- El localstorae está disponible en el testing, por lo que se debe limpiar 
 
 - Sujeto
 
