@@ -985,6 +985,9 @@ export const ProductCard = ({children , product, className, style, onChange, val
 
 __useProduct.ts__
 ```ts
+import { useEffect, useState } from "react";
+import { Product, onChangeArgs, InitialValues } from '../interfaces/interfaces';
+
 interface useProductsArgs {
     product: Product;
     onChange?: (args: onChangeArgs) => void;
@@ -995,4 +998,276 @@ interface useProductsArgs {
 export const useProduct = ({onChange, product, value = 0, initialValues}: useProductsArgs) => {
     const [counter, setCounter] = useState(initialValues?.count || value);
 
+    // Se usa referencia para saber si el controlador está comandado por una función.
+    //const isControlled = useRef(!!onChange);
+
+    const increaseBy = (value: number) => {
+        // if(isControlled.current) {
+        //     return onChange!({count: value, product});
+        // }
+        
+        const newValue = Math.max(counter+value, 0)
+        setCounter(newValue);
+
+        onChange && onChange({count: newValue, product});
+    }
+
+    useEffect(() => {
+        setCounter(value);
+    }, [value]);
+
+    return {
+        counter,
+        increaseBy
+    }
+}
+```
+
+- Por el momento el valor de initial value no se refleja en la UI ya que el useEffect en use Product se está ejecutando dos veces.
+    1. Cuando se cambia el valor de value.
+    2. Cuando se renderiza por primera vez el Hook.
+- Entonces, lo anterior se resuelve haciendo que no se ejecute hasta que el componente haya sido montado correctamente.
+
+
+## 3. Mostrar el valor inicial en el componente
+- Es un useRef se mantiene la referencia de si el componente ya fue montado, lo cual sirve para saber si ejecutar el useEffect que usa setCounter.
+
+```ts
+import { useEffect, useRef, useState } from "react";
+import { Product, onChangeArgs, InitialValues } from '../interfaces/interfaces';
+
+interface useProductsArgs {
+    product: Product;
+    onChange?: (args: onChangeArgs) => void;
+    value?: number;
+    initialValues?: InitialValues
+}
+
+export const useProduct = ({ onChange, product, value = 0, initialValues }: useProductsArgs) => {
+    const [counter, setCounter] = useState(initialValues?.count || value);
+
+    // Se usa referencia para saber si el controlador está comandado por una función.
+    //const isControlled = useRef(!!onChange);
+    const isMounted = useRef(false)
+
+    const increaseBy = (value: number) => {
+        // if(isControlled.current) {
+        //     return onChange!({count: value, product});
+        // }
+
+        const newValue = Math.max(counter + value, 0)
+        setCounter(newValue);
+
+        onChange && onChange({ count: newValue, product });
+    }
+
+    useEffect(() => {
+        if (!isMounted.current) return;
+        setCounter(value);
+    }, [value]);
+
+    useEffect(() => {
+        isMounted.current = true;
+    }, [])
+
+
+    return {
+        counter,
+        increaseBy
+    }
+}
+```
+
+- Esto va a funcionar en producción, pero en desarrollo se ejecuta dos veces el useEffect por lo que el valor se mostrará en 0.
+
+## 4. Utilizar el maxCount como limitante 
+- En useProduct se usa Math.min
+
+```ts
+    const increaseBy = (value: number) => {
+        // if(isControlled.current) {
+        //     return onChange!({count: value, product});
+        // }
+
+        const newValue = Math.min(Math.max(counter + value, 0), initialValues?.maxCount || Infinity)
+        setCounter(newValue);
+
+        onChange && onChange({ count: newValue, product });
+    }
+```
+
+## 5. Función como hijo de un HOC
+- Este patrón exige otorgar una forma de hacer reset al valor.
+- Se implementa una función que retorna JSX.
+    - Esto brinda poder mandar argumentos en esa función.
+    1. En ProductCard cambiar la definición de la interface para children a forma de que sea una función.
+    2. Invocar children en el cuerpo de ProductCard.
+
+__ProductCard.tsx__
+```tsx
+import styles from '../styles/styles.module.css';
+import { useProduct } from '../hooks/useProduct';
+import { CSSProperties, ReactElement, createContext } from 'react';
+import { InitialValues, Product, ProductContextProps, onChangeArgs, } from '../interfaces/interfaces';
+
+// No se define directamente Product como el tipo de las Props, ya que naturalmente se reciben más cosas por parte de react provenientes del dom o los children.
+export interface Props {
+    product: Product;
+    className?: string;
+    //children?: ReactElement | ReactElement[];
+    children: () => JSX.Element,
+    style?: CSSProperties;
+    onChange?: (args: onChangeArgs) => void;
+    value?: number;
+    initialValues?: InitialValues
+}
+
+export const ProductContext = createContext({} as ProductContextProps);
+const { Provider } = ProductContext;
+
+export const ProductCard = ({ children, product, className, style, onChange, value, initialValues }: Props) => {
+
+    const { counter, increaseBy } = useProduct({ onChange, product, value, initialValues });
+
+    return (
+        <Provider value={{
+            counter,
+            increaseBy,
+            product
+        }}>
+            <div
+                className={`${styles.productCard} ${className}`}
+                style={style}
+            >
+                {children()}
+            </div>
+        </Provider>
+    )
+}
+
+/* ProductCard.Title = ProductTitle;
+ProductCard.Image = ProductImage;
+ProductCard.Buttons = ProductButtons; */
+```
+
+- Renderizar con una función a hijos de ProductCard en ShoppingPage.
+
+``` tsx
+      <ProductCard
+        product={product}
+        className="bg-dark"
+        style={{ backgroundColor: '#70D1F8' }}
+        initialValues={{
+          count: 4,
+
+        }}
+      >
+        {
+          () => (
+            <>
+              <ProductImage className="custom-image" />
+              <ProductTitle className="text-white" />
+              <ProductButtons className="custom-buttons" />
+            </>
+          )
+        }
+      </ProductCard>
+```
+
+## 6. Exponer funciones y propiedades de un componente
+1. Definir interfaz de lo que va a recibir la función que retorna JSX definida en Children de ProductCard.
+
+```ts
+
+export interface ProductCardHandlers {
+    count: number;
+    isMaxCountReached: boolean;
+    maxCount?: number;
+    product: Product;
+    increaseBy: (value: number) => void;
+    reset: () => void;
+}
+```
+
+2. Colocar interfaz en interfaces de Props de ProductCard.
+    - La opción de isMaxCountReached y la función de reset se definen en useProduct.
+
+``` ts
+import styles from '../styles/styles.module.css';
+import { useProduct } from '../hooks/useProduct';
+import { CSSProperties, createContext } from 'react';
+import { InitialValues, Product, ProductCardHandlers, ProductContextProps, onChangeArgs, } from '../interfaces/interfaces';
+
+// No se define directamente Product como el tipo de las Props, ya que naturalmente se reciben más cosas por parte de react provenientes del dom o los children.
+export interface Props {
+    product: Product;
+    className?: string;
+    //children?: ReactElement | ReactElement[];
+    children: (args: ProductCardHandlers) => JSX.Element,
+    style?: CSSProperties;
+    onChange?: (args: onChangeArgs) => void;
+    value?: number;
+    initialValues?: InitialValues
+}
+
+export const ProductContext = createContext({} as ProductContextProps);
+const { Provider } = ProductContext;
+
+export const ProductCard = ({ children, product, className, style, onChange, value, initialValues }: Props) => {
+
+    const { counter, isMaxCountReached, increaseBy, reset } = useProduct({ onChange, product, value, initialValues });
+
+    return (
+        <Provider value={{
+            counter,
+            increaseBy,
+            product,
+            maxCount: initialValues?.maxCount
+        }}>
+            <div
+                className={`${styles.productCard} ${className}`}
+                style={style}
+            >
+                {children({
+                    count: counter,
+                    isMaxCountReached,
+                    maxCount: initialValues?.maxCount,
+                    product,
+                    reset,
+                    increaseBy,
+                })}
+            </div>
+        </Provider>
+    )
+}
+
+/* ProductCard.Title = ProductTitle;
+ProductCard.Image = ProductImage;
+ProductCard.Buttons = ProductButtons; */
+```
+
+- De esta forma ya se tienen acceso a todos los argumentos de esta función al momento de llamarla en ShoppingPage.
+
+```tsx
+     <ProductCard
+        product={product}
+        className="bg-dark"
+        style={{ backgroundColor: '#70D1F8' }}
+        initialValues={{
+          count: 4,
+          maxCount: 10,
+        }}
+      >
+        {
+          ({ reset }) => (
+            <>
+              <ProductImage className="custom-image" />
+              <ProductTitle className="text-white" />
+              <ProductButtons className="custom-buttons" />
+              <button onClick={reset}>Reset</button>
+            
+            </>
+          )
+        }
+      </ProductCard>
 ```
