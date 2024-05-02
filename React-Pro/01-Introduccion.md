@@ -247,5 +247,281 @@ export default CounterEffect
 
 ```
 
-### CustomHooks con referencias HTML
+## 6. CustomHooks con referencias HTML
 - Se aprecia que en el componente actual se tienen varias responsabilidades, por lo que se plantea crear un custom hook para separar el estado y la lógica de la animación.
+
+1. src -> hooks -> useCounter
+    - Copiar todo lo relacionado a hooks de CounterEffect y colocarlo en este custom hook.
+    - Retornar del custom hook el counter, la referencia de ref (counter element) y la función handleClick.
+2. Corregir problema de timeline.
+    - Actualmente se está creando otra instancia del timeline en el useEffect ya que no se limpia.
+    - Se utiliza un useRef para tener la isntancia de gsap.timeline para garantizar que solo se renderice una vez.
+    - Por medio de useLayoutEffect (la diferencia con useEffect es que useLayoutEffect espera a que todos los elementos html ya estén construidos.)
+    - Al momento de definir la animación se le coloca pause para evitar que se dispare apenas se cree.
+
+__useCounter.ts__
+
+``` ts
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { gsap } from "gsap";
+
+
+export const useCounter = ({maxCount = 10}) => {
+
+    const [counter, setCounter] = useState(6);
+    const elementToAnimate = useRef<any>(null);
+
+    const tl = useRef(gsap.timeline());
+
+    const handleClick = () => {
+        setCounter(prev => Math.min(prev + 1, maxCount));
+    }
+
+    useLayoutEffect(() => {
+
+        if( !elementToAnimate.current ) return;
+        
+        tl.current.to(elementToAnimate.current, { y: -10, duration: 0.2, ease: 'elastic.inOut' })
+                  .to(elementToAnimate.current, { y: 0, duration: 1, ease: 'bounce.out' })
+                  .pause(); // No inicia la animación de forma inmediata apenas se cree.
+    }, [])
+
+    useEffect(() => {
+        tl.current.play(0);
+    }, [counter])
+
+  return {
+    counter,
+    elementToAnimate,
+    handleClick
+  }
+}
+```
+
+__CounterHook.tsx__
+
+``` tsx
+import { useCounter } from "../hooks/useCounter";
+
+
+const CounterHook = () => {
+
+    const {counter, elementToAnimate, handleClick} = useCounter({ maxCount: 15 });
+
+    return (
+        <>
+            <h1>Counter</h1>
+            <h2 ref={elementToAnimate}>{counter}</h2>
+
+            <button onClick={handleClick}>
+                +1
+            </button>
+        </>
+    )
+}
+
+export default CounterHook
+
+```
+
+## 7. useReducer
+- El hook cuenta con tres argumentos:
+    1. reducer
+    2. initial state
+    3. función init, la cual permite definir el estado inicial de forma lazy ya que se considera que puede traer muchos datos el estado del reducer.
+- Una función reducer es una función pura. Resuelve sus acciones únicamente con los argumentos que recibe sin interactuar con lo que hay más allá de su scope.
+    - Se le asocia reducer a una función ya que recibe un estado inicial, una acción y produce otro estado.
+
+``` js
+import { useReducer } from "react"
+
+interface CounterState {
+    counter: number,
+    previous: number,
+    changes: number,
+}
+
+const INITIAL_STATE: CounterState = {
+    counter: 0,
+    previous: 0,
+    changes: 0,
+}
+
+type CounterAction = 
+    | { type: 'increaseBy', payload: { value: number; } }
+    | { type: 'reset' }
+
+const counterReducer = (state: CounterState, action: CounterAction): CounterState => {
+
+    const { counter, changes } = state;
+
+    switch (action.type) {
+        case 'reset':
+            return {
+                counter: 0,
+                changes: 0,
+                previous: 0
+            }
+        
+        case 'increaseBy':
+            return {
+               counter: counter + action.payload.value,
+               changes: changes + 1,
+               previous: counter,
+            }
+    
+        default:
+            return state;
+    }
+}
+
+export const CounterReducer = () => {
+    
+    const [counterState, dispatch] = useReducer(counterReducer, INITIAL_STATE);
+
+    const handleReset = () => {
+        dispatch({ type: 'reset' });
+    }
+
+    const increaseBy = (value: number) => {
+        dispatch({ type: 'increaseBy', payload: { value } })
+    }
+
+    return (
+        <>
+            <h1>Counter Reducer</h1>
+
+            <pre>
+                {JSON.stringify(counterState, null, 2)}
+            </pre>
+
+            <button onClick={handleReset}>
+                Reset
+            </button>
+
+            <button onClick={() => increaseBy(2)}>
+                +2
+            </button>
+        </>
+    )
+}
+```
+
+### Separar acciones, interfaces y reducer
+1. src -> counter-reducer -> CounterReducer.tsx
+
+``` js
+import { useReducer } from "react"
+import { CounterState } from "./interfaces/interfaces";
+import { counterReducer } from "./state/counterReducer";
+
+const INITIAL_STATE: CounterState = {
+    counter: 0,
+    previous: 0,
+    changes: 0,
+}
+
+export const CounterReducerComponent = () => {
+    
+    const [counterState, dispatch] = useReducer(counterReducer, INITIAL_STATE);
+
+    const handleReset = () => {
+        dispatch({ type: 'reset' });
+    }
+
+    const increaseBy = (value: number) => {
+        dispatch({ type: 'increaseBy', payload: { value } })
+    }
+
+    return (
+        <>
+            <h1>Counter Reducer Segmentado</h1>
+
+            <pre>
+                {JSON.stringify(counterState, null, 2)}
+            </pre>
+
+            <button onClick={handleReset}>
+                Reset
+            </button>
+
+            <button onClick={() => increaseBy(2)}>
+                +2
+            </button>
+        </>
+    )
+}
+```
+
+2. src -> counter-reducer -> state
+2. src -> counter-reducer -> actions
+2. src -> counter-reducer -> interfaces
+
+### Action Creators
+- Es muy volatil manejar las acciones por medio de strings.
+    - Actions Creators está inspirado en el patrón Redux.
+    - Es generar una función que genere la acción que se va a ocupar.
+
+1. src -> counter-reducer -> actions -> actions.ts
+    - Se acostumbra colocarle do al nombre de la action creator.
+
+``` ts
+export type CounterAction = 
+    | { type: 'increaseBy', payload: { value: number; } }
+    | { type: 'reset' }
+
+export const doReset = ():CounterAction => ({
+    type: 'reset'
+});
+
+export const doIncreaseBy = (value: number):CounterAction => ({
+    type: 'increaseBy',
+    payload: { value }
+})
+
+```
+
+2. Llamar funciones en dispatch correspondiente.
+
+``` tsx
+export const CounterReducerComponent = () => {
+    
+    const [counterState, dispatch] = useReducer(counterReducer, INITIAL_STATE);
+
+    const handleReset = () => {
+        dispatch(doReset());
+    }
+
+    const increaseBy = (value: number) => {
+        dispatch( doIncreaseBy(value) )
+    }
+
+```
+
+- A modo de no importar tanto se puede importar todo de una carpeta en un objeto.
+
+``` js
+import { useReducer } from "react"
+import { CounterState } from "./interfaces/interfaces";
+import { counterReducer } from "./state/counterReducer";
+//import { doIncreaseBy, doReset } from "./actions/actions";
+import * as actions from "./actions/actions";
+
+const INITIAL_STATE: CounterState = {
+    counter: 0,
+    previous: 0,
+    changes: 0,
+}
+
+export const CounterReducerComponent = () => {
+    
+    const [counterState, dispatch] = useReducer(counterReducer, INITIAL_STATE);
+
+    const handleReset = () => {
+        dispatch(actions.doReset());
+    }
+
+    const increaseBy = (value: number) => {
+        dispatch( actions.doIncreaseBy(value) )
+    }
+```
