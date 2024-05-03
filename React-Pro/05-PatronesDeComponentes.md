@@ -1271,3 +1271,240 @@ ProductCard.Buttons = ProductButtons; */
         }
       </ProductCard>
 ```
+
+# Sección 9. NPM Deploy - Desplegar paquetes de componentes
+## Temas
+Aquí realizaremos el primer despliegue a NPM de nuestro paquete.
+
+Eventualmente lo haremos utilizando Storybook, pero por ahora lo haremos de la forma como tenemos nuestro componente y una forma directa de hacerlo.
+
+Es importante también realizarlo con TypeScript y exponer los archivos de definición para que otros desarrolladores que también usen TypeScript, también tengan el auto-completado y manejo de errores.
+
+## 1. Preparación
+1. Crear nueva rama en git.
+2. Eliminar classNames que no se ocupen de ShoppingPage para la parte de producción.
+    - Se elimina la referencia a custom-files
+    - El objetivo es dejar el componente en su estado por defecto.
+
+```tsx
+import { ProductCard, ProductImage, ProductTitle, ProductButtons } from "../components/"
+import { products } from "../data/products";
+
+const product = products[1];
+
+export const ShoppingPage = () => {
+
+  return (
+    <div>
+      <h1>Shopping Store</h1>
+      <hr />
+
+      <ProductCard
+        product={product}
+        initialValues={{
+          count: 4,
+          maxCount: 10,
+        }}
+      >
+        {
+          ({ reset, increaseBy, isMaxCountReached }) => (
+            <>
+              <ProductImage />
+              <ProductTitle />
+              <ProductButtons />
+            </>
+          )
+        }
+      </ProductCard>
+
+    </div>
+  )
+}
+
+
+```
+## Paso 1. Crear proyecto de tsdx
+- Se crea un proyecto que contiene solo lo que se desea subir.
+
+```bash
+npx tsdx create <nombre del paquete>
+```
+
+1. Crear proyecto.
+
+```bash
+npx tsdx create ar-product-card
+```
+
+2. Escoger plantilla de react.
+
+### Estructura del proyecto - TSDX - NPM
+- Readme.md
+    - Es la documentación que aparecerá en la página del paquete en npm.
+- Package.json
+    - Se establece que la versión es 0.0.1 ya que es la primera vez que se va a subir.
+    - Contiene otras configuraciones del proyecto.
+- package-lock.json
+    - También se coloca la misma versión que se puso en package.json
+
+## Paso 2. Optimizar index.tsx
+- En src se debe colocar todo lo creado de la aplicación que se desea subir.
+    - Se omite el page de ShoppingPage, ya que se va a usar como el ejemplo.
+    - No se sube carpeta de data.
+    - No se va a subir el custom hook de useShoppingCart, ya que es un patrón que se implementó para el carrito de compras.
+
+1. Copiar todo desde carpeta de assets hasta styles.
+2. Eliminar lo que no se necesita.
+    - Data
+    - useShoppingCart.
+    - Pages (se coloca un fragmento en el Readme como ejemplo).
+3. En index.tsx colocar todas las exportaciones que serán vistas desde el mundo exterior.
+    - Actualmente son los componentes son los que se exponen.
+
+```ts
+export * from './components';
+
+```
+
+## Paso 3. Módulos (opcional)
+- Si el código tiene imágenes importadas y/o CSS modularizado de esta forma se debe hacer una configuración adicional.
+
+```ts
+import styles from '../styles/styles.module.css';
+import noImage from '../assets/no-image.jpg';
+```
+
+- Se hace una configuración para permitir la importación de estilos como módulos, ya que si actualmente se corre npm start se tiene un error.
+
+```
+× Failed to compile
+(typescript) Error: C:/Users/Usuario/Documents/Github Desktop/React/React-Pro/ar-product-card/src/components/ProductCard.tsx(1,20): semantic error TS2307: Cannot find module '../styles/styles.module.css' or its corresponding type declarations.
+```
+
+- Se debe crear un archivo de configuración TSDX **tsdx.config.js** en la raíz del proyecto para ayudar en el proceso de construcción del paquete.
+
+```js
+
+const postcss = require('rollup-plugin-postcss');
+const images = require('@rollup/plugin-image');
+module.exports = {
+ rollup(config, options) {
+ 
+ config.plugins = [
+ postcss({ modules: true }),
+ images({ incude: ['**/*.png', '**/*.jpg'] }),
+ ...config.plugins,
+ ];
+ return config;
+ },
+};
+```
+
+- Realizar instalaciones respectivas para poder indicar a tsdx cómo cargar imágenes y módulos de css.
+```bash
+npm i -D rollup-plugin-postcss 
+npm i -D @rollup/plugin-image
+```
+
+- Crear archivo de definición de los módulos.
+    - Los typings ayudan a indicarle a TS cómo cargar los módulos de css.
+1. src -> typings.d.ts
+
+```ts
+declare module '*.css' {
+    const content: { [className: string]: string };
+    export default content;
+}
+
+declare module "*.jpg" {
+    const value: any;
+    export default value;
+}
+```
+
+- Si se corre el proyecto ahora se tiene el siguiente error:
+    - Se debe a que se require escribir la importación en React en todos los archivos en donde se usa.
+
+```bash
+× Failed to compile
+(typescript) Error: C:/Users/Usuario/Documents/Github Desktop/React/React-Pro/ar-product-card/src/components/ProductButtons.tsx(16,6): semantic error TS2686: 'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+```
+
+## Paso 4. Build
+```bash 
+npm run build
+```
+
+- El comando anterior crea el archivo dist.
+
+## Paso 5. Example
+- En la carpeta de example el archivo index.ts no sirve por el momento ya que thing ya no existe. Entonces, en su lugar se debe importa ProductCard y colocar el ejemplo.
+
+```tsx
+import 'react-app-polyfill/ie11';
+import * as React from 'react';
+import * as ReactDOM from 'react-dom';
+import { ProductCard, ProductImage, ProductTitle, ProductButtons } from "../."
+
+const product = {
+  id: 2,
+  title: 'Coffee Mug - Meme',
+  //img: './coffee-mug2.png'
+}
+
+const App = () => {
+  return (
+    <ProductCard
+        product={product}
+        initialValues={{
+          count: 4,
+          maxCount: 10,
+        }}
+      >
+        {
+          ({ reset, increaseBy, isMaxCountReached }) => (
+            <>
+              <ProductImage />
+              <ProductTitle />
+              <ProductButtons />
+            </>
+          )
+        }
+    </ProductCard>
+  );
+};
+
+ReactDOM.render(<App />, document.getElementById('root'));
+
+```
+
+## Paso 6. Github Repo
+Este paso aunque suene opcional, es importante para la longevidad del proyecto, puede que 
+eventualmente decidas dejarlo y heredarlo a otra persona que lo continuará o invitar 
+colaboradores que puedan realizar actualizaciones o bien aceptar mejoras que otras personas 
+puedan hacer a tu paquete.
+Adicionalmente tratar de mantener release tags acorde a la versión del paquete que puedes 
+observar en el package.json
+Colocar la referencia de tu repositorio en el package.json que se encuentra en el root del 
+proyecto
+
+``` json
+"repository": {
+    "url": "https://github-com/<repo>",
+    "type": "git",
+}
+```
+
+- Revisar documento pdf para ver otras partes opcionales de este paso.
+
+## Paso 7. Pruebas automáticas
+https://cursos.devtalles.com/courses/take/react-pro/lessons/35261776-paso-7-pruebas-automaticas
+- Se instalan las dependencias de pruebas usadas en react 0 a experto.
+- Se pueden tener problemas de nuevo por el css, por lo que en el pdg se tienen las configuraciones necesarias.
+
+## Paso 8. Publicar
+1- Crear una cuenta en NPM
+2- Realizar el login en la consola o terminal (Colocar toda la información solicitada) 
+npm login 
+3- Ejecutar el siguiente comando para publicar la aplicación:
+yarn publish
