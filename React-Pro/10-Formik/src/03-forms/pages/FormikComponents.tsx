@@ -70,7 +70,9 @@ export const FormikComponents = () => {
                             <ErrorMessage name='email' component="span" />
 
                             <label htmlFor="email">Job Type</label>
-                            <Field name='email' as="select" />
+                            <Field name='email' as="select">
+
+                            </Field>
                             <ErrorMessage name='email' component="span" />
 
                             <label>
