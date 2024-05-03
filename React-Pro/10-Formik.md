@@ -205,3 +205,182 @@ import * as Yup from 'yup'
 - Es una propiedad que se puede destructurar de useFormik, la cual es un método.
 - Ayuda a resolver el problema de tener que definir manualmente los campos de onChange, name, value y onBlur en las inputs.
     - Se destructura el objeto en el input y se le pasa como argumento el nombre del campo deseado.
+
+```tsx
+import { useFormik } from 'formik'
+import * as Yup from 'yup'
+import '../styles/styles.css'
+
+export const FormikYupPage = () => {
+
+    const { handleSubmit, errors, touched, getFieldProps } = useFormik({
+        initialValues: {
+            firstName: '',
+            lastName: '',
+            email: '',
+        },
+        onSubmit: (value) => {
+            console.log(value);
+        },
+        validationSchema: Yup.object({
+            firsName: Yup.string()
+                .max(15, 'Debe de tener 15 caracateres o menos')
+                .required('Required'),
+            lastName: Yup.string()
+                .max(10, 'Debe de tener 10 caracateres o menos')
+                .required('Required'),
+            email: Yup.string()
+                .email('No tiene un formato válido de email')
+                .required('Required'),
+        })
+    });
+
+    return (
+        <div>
+            <h1>Formik Yup Tutorial</h1>
+            <form onSubmit={handleSubmit} noValidate>
+                <label htmlFor="firstName">First Name</label>
+                <input type="text" {...getFieldProps('firstName')} />
+                {touched.firstName && errors.firstName && <span>{errors.firstName}</span>}
+
+                <label htmlFor="lastName">Last Name</label>
+                <input type="text" {...getFieldProps('lastName')} />
+                {touched.lastName && errors.lastName && <span>{errors.lastName}</span>}
+
+                <label htmlFor="email">Email</label>
+                <input type="text" {...getFieldProps('email')} />
+                {touched.email && errors.email && <span>{errors.email}</span>}
+
+                <button type='submit'>Submit</button>
+            </form>
+        </div>
+    )
+}
+```
+
+## 6. Formik: componentes
+1. React-Pro\10-Formik\src\03-forms\pages\FormikComponents.tsx
+- Formik crea su propio contexto pasando las props que se colocan en useFormik.
+
+### Formik
+- Es un componente que evitar tener que usar el useFormik, en donde en el componente se le pasan los argumentos de useFormik como atributos.
+
+```tsx
+            <Formik
+                initialValues={{
+                    firstName: '',
+                    lastName: '',
+                    email: '',
+                }}
+                onSubmit={(values) => {
+                    console.log(values)
+                }}
+                validationSchema={Yup.object({
+                    firsName: Yup.string()
+                        .max(15, 'Debe de tener 15 caracateres o menos')
+                        .required('Required'),
+                    lastName: Yup.string()
+                        .max(10, 'Debe de tener 10 caracateres o menos')
+                        .required('Required'),
+                    email: Yup.string()
+                        .email('No tiene un formato válido de email')
+                        .required('Required'),
+                })}
+            >
+
+            </Formik>
+```
+
+### Form
+- Reemplaza al elemento form de html.
+- Se usa en conjunto con Field, el cual se le especifica el campo de name y type como con una input.
+    - Se usa igualmente ErrorMessage, el cual se asocia con el Field por medoi del name. Igualmente, se tiene la prop component para especificar que elemento html debería envolver el mensaje de error en caso de que se desee ocupar algún elemento html.
+
+```tsx
+import { useFormik, Formik, Form, Field, ErrorMessage } from 'formik'
+import * as Yup from 'yup'
+import '../styles/styles.css'
+
+export const FormikComponents = () => {
+
+    const { handleSubmit, errors, touched, getFieldProps } = useFormik({
+        initialValues: {
+            firstName: '',
+            lastName: '',
+            email: '',
+        },
+        onSubmit: (value) => {
+            console.log(value);
+        },
+        validationSchema: Yup.object({
+            firsName: Yup.string()
+                .max(15, 'Debe de tener 15 caracateres o menos')
+                .required('Required'),
+            lastName: Yup.string()
+                .max(10, 'Debe de tener 10 caracateres o menos')
+                .required('Required'),
+            email: Yup.string()
+                .email('No tiene un formato válido de email')
+                .required('Required'),
+        })
+    });
+
+    return (
+        <div>
+            <h1>Formik Components</h1>
+
+            <Formik
+                initialValues={{
+                    firstName: '',
+                    lastName: '',
+                    email: '',
+                }}
+                onSubmit={(values) => {
+                    console.log(values)
+                }}
+                validationSchema={Yup.object({
+                    firsName: Yup.string()
+                        .max(15, 'Debe de tener 15 caracateres o menos')
+                        .required('Required'),
+                    lastName: Yup.string()
+                        .max(10, 'Debe de tener 10 caracateres o menos')
+                        .required('Required'),
+                    email: Yup.string()
+                        .email('No tiene un formato válido de email')
+                        .required('Required'),
+                })}
+            >
+
+                {
+                    formik => (
+                        <Form onSubmit={handleSubmit} noValidate>
+                            <label htmlFor="firstName">First Name</label>
+                            <Field name='firstName' type='text' />
+                            <ErrorMessage name='firstName' component="span" />
+
+                            <label htmlFor="lastName">Last Name</label>
+                            <Field name='lastName' type='text' />
+                            <ErrorMessage name='lastName' component="span" />
+
+                            <label htmlFor="email">Email</label>
+                            <Field name='email' type='text' component="span" />
+                            <ErrorMessage name='email' />
+
+                            <button type='submit'>Submit</button>
+                        </Form>
+                    )
+                }
+
+            </Formik>
+        </div>
+    )
+}
+```
+
+## 7. Selects y Checks
+- A modo de mostrar su uso se agregan dos campos nuevos al initialValue:
+    - terms: false
+    - jobType ''
+
+### Select
+- A Field se le debe poner as y no type.
